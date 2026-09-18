@@ -96,7 +96,7 @@ Seedance 无后缀模型默认 **720p**；显式分辨率后缀不允许与请�
 
 `background=false` 同步等待，超过同步时限仍返回可继续查询的任务 ID。成功时从 `data[].url` 获取结果，`metadata` 使用上游实际尺寸与时长。Responses 接受字符串 input 或消息内容列表；兼容返回形状不代表实现了完整 OpenAI Responses API。
 
-上游实测包括 Mini 480p 多素材、2.5 480p 多素材、标准 480p 首帧；其他能力来自服务端 manifest，仍由上游当前账户权益和实时规则决定。`published=true` 表示允许上游公开作品，`protection_mode` 与会员权益有关，请按需要设置。
+上游实测包括 Mini 480p 多素材、2.5 480p 多素材、标准 480p 文生视频；其他能力来自服务端 manifest，仍由上游当前账户权益和实时规则决定。`published=true` 表示允许上游公开作品，`protection_mode` 与会员权益有关，请按需要设置。
 
 ## 验证
 
