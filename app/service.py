@@ -18,6 +18,7 @@ from app.model_catalog import (
 )
 from app.pollo_client import PolloClient, SubmissionUnknown, UpstreamError, result_urls
 from app.schemas import SettingsPatch
+from app.task_errors import failure_diagnostic, public_failure
 
 LOGGER = logging.getLogger("pol2api")
 TERMINAL = {"succeeded", "failed", "expired"}
@@ -502,6 +503,22 @@ class PolService:
                         if raw != "succeed":
                             refund = detail.get("refundCreditDecimal")
                             cost = max(cost - float(refund or 0), 0)
+                            audit["failure"] = {
+                                "stage": "generation",
+                                "message": failure_diagnostic(detail)
+                                or failure_diagnostic(status),
+                            }
+                        failure = (
+                            public_failure(
+                                {
+                                    **self.db.get_task(task_id),
+                                    "error_code": "GENERATION_FAILED",
+                                    "upstream_response": audit,
+                                }
+                            )
+                            if raw != "succeed"
+                            else {}
+                        )
                         self.db.update_task(
                             task_id,
                             status="succeeded" if raw == "succeed" else "failed",
@@ -517,10 +534,7 @@ class PolService:
                             error_code="" if raw == "succeed" else "GENERATION_FAILED",
                             error_message=""
                             if raw == "succeed"
-                            else str(
-                                detail.get("failMsg")
-                                or "Pollo 生成失败；退款状态请以账户余额为准"
-                            ),
+                            else failure["message"],
                         )
                         if raw == "succeed":
                             self.db.record_model_cost(task_id, payload, cost)
@@ -550,21 +564,31 @@ class PolService:
                 raise TimeoutError("查询超时；上游任务可能仍在运行，可重试查询原任务")
         except Exception as exc:
             uncertain = getattr(exc, "code", "") == "SUBMISSION_UNKNOWN"
+            error_code = getattr(
+                exc,
+                "code",
+                "TIMEOUT"
+                if isinstance(exc, TimeoutError)
+                else "INVALID_REQUEST"
+                if isinstance(exc, ValueError)
+                else "INTERNAL_ERROR",
+            )
+            audit["failure"] = {
+                "message": str(exc)[:800],
+                "stage": getattr(exc, "stage", ""),
+            }
+            failure = public_failure(
+                {
+                    **self.db.get_task(task_id),
+                    "error_code": error_code,
+                    "upstream_response": audit,
+                }
+            )
             self.db.update_task(
                 task_id,
                 status="expired" if isinstance(exc, TimeoutError) else "failed",
-                error_code=getattr(
-                    exc,
-                    "code",
-                    "TIMEOUT"
-                    if isinstance(exc, TimeoutError)
-                    else "INVALID_REQUEST"
-                    if isinstance(exc, ValueError)
-                    else "INTERNAL_ERROR",
-                ),
-                error_message=str(exc)[:800]
-                if isinstance(exc, (ValueError, UpstreamError, TimeoutError))
-                else "任务执行异常，请查看服务日志",
+                error_code=error_code,
+                error_message=failure["message"],
                 completed_at=now_ts(),
                 upstream_response=audit,
             )
@@ -639,16 +663,7 @@ class PolService:
             },
         }
         if task["status"] in ("failed", "expired"):
-            result["error"] = {
-                "code": task["error_code"],
-                "message": task["error_message"],
-                "outcome": "failed"
-                if task["error_code"] == "GENERATION_FAILED"
-                else "unknown"
-                if task.get("generation_id")
-                or task["error_code"] == "SUBMISSION_UNKNOWN"
-                else "rejected",
-            }
+            result["error"] = public_failure(task)
         metadata = (task.get("raw_status") or {}).get("videoMeta")
         if metadata:
             result["metadata"] = metadata

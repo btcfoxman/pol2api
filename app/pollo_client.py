@@ -19,13 +19,15 @@ import requests
 
 from app.config import rewrite_loopback_proxy
 from app.recipes import input_values, media_rules
+from app.task_errors import classify_failure
 
 
 class UpstreamError(RuntimeError):
-    def __init__(self, message, code="UPSTREAM_ERROR", status_code=502):
+    def __init__(self, message, code="UPSTREAM_ERROR", status_code=502, *, stage=""):
         super().__init__(message)
         self.code = code
         self.status_code = status_code
+        self.stage = stage
 
 
 class SubmissionUnknown(UpstreamError):
@@ -121,9 +123,51 @@ class PolloClient:
                     time.sleep(min(2**attempt, 5))
                     continue
                 raise UpstreamError("Pollo 网络请求失败", "NETWORK_ERROR") from exc
-            if response.status_code in (401, 403):
+            try:
+                response_body = response.json()
+            except Exception:
+                response_body = None
+            stage = "upload_sign" if path == "/api/upload/sign" else ""
+            item = (
+                response_body[0]
+                if isinstance(response_body, list) and response_body
+                else response_body
+            )
+            # tRPC business errors can arrive with HTTP 400/403/422. Decode them
+            # before deciding that a valid account needs to log in again.
+            if (
+                path.startswith("/api/trpc/")
+                and response.status_code < 500
+                and isinstance(item, dict)
+                and item.get("error")
+            ):
+                return response_body
+            if stage and isinstance(item, dict) and not item.get("sign"):
+                error = item.get("error") or item
+                message = error.get("message") if isinstance(error, dict) else error
+                code = (
+                    str(error.get("code") or "UPLOAD_REJECTED")
+                    if isinstance(error, dict)
+                    else "UPLOAD_REJECTED"
+                )
+                raise self._business_error(
+                    str(message or "上传签名请求被拒绝"),
+                    code,
+                    response.status_code if response.status_code >= 400 else 422,
+                    stage,
+                )
+            if response.status_code == 401 or (
+                response.status_code == 403 and not stage
+            ):
                 raise UpstreamError(
                     "Pollo 会话失效或需要浏览器验证", "AUTH_REQUIRED", 401
+                )
+            if stage and response.status_code >= 300:
+                raise UpstreamError(
+                    "上传签名请求被拒绝",
+                    "UPLOAD_REJECTED",
+                    response.status_code,
+                    stage=stage,
                 )
             if response.status_code == 429 or response.status_code >= 500:
                 if attempt + 1 < attempts:
@@ -142,13 +186,23 @@ class PolloClient:
                     "UPSTREAM_HTTP_ERROR",
                     response.status_code,
                 )
-            try:
-                return response.json()
-            except Exception as exc:
+            if response_body is None:
                 raise UpstreamError(
-                    "Pollo 返回非 JSON 响应", "INVALID_RESPONSE"
-                ) from exc
+                    "Pollo 返回非 JSON 响应", "INVALID_RESPONSE", stage=stage
+                )
+            return response_body
         raise UpstreamError("Pollo 请求失败")
+
+    @staticmethod
+    def _business_error(message, code, status, stage=""):
+        category = classify_failure(code, message, stage=stage)
+        if (
+            status == 401
+            or code == "UNAUTHORIZED"
+            or (code == "FORBIDDEN" and not stage and category == "GENERATION_FAILED")
+        ):
+            return UpstreamError("Pollo 会话失效或需要验证", "AUTH_REQUIRED", 401)
+        return UpstreamError(message, code, status, stage=stage)
 
     def rpc(self, name, value=None, *, mutation=False):
         data = {"0": {"json": value}}
@@ -171,13 +225,21 @@ class PolloClient:
         if not isinstance(item, dict):
             raise UpstreamError("无效 tRPC 响应", "INVALID_RESPONSE")
         if "error" in item:
-            err = item["error"].get("json", item["error"])
+            error = item["error"]
+            if not isinstance(error, dict):
+                raise UpstreamError("无效 tRPC 错误响应", "INVALID_RESPONSE")
+            err = error.get("json", error)
+            if not isinstance(err, dict):
+                raise UpstreamError("无效 tRPC 错误响应", "INVALID_RESPONSE")
             details = err.get("data") or {}
             code = str(details.get("code") or err.get("code") or "TRPC_ERROR")
             message = str(err.get("message") or "Pollo 请求被拒绝")[:500]
-            if code in ("UNAUTHORIZED", "FORBIDDEN"):
-                raise UpstreamError("Pollo 会话失效或需要验证", "AUTH_REQUIRED", 401)
-            raise UpstreamError(message, code, int(details.get("httpStatus") or 422))
+            raise self._business_error(
+                message,
+                code,
+                int(details.get("httpStatus") or 422),
+                "upload_complete" if name == "uploadAsset.complete" else "",
+            )
         if "result" not in item or "data" not in item["result"]:
             raise UpstreamError("无效 tRPC 数据", "INVALID_RESPONSE")
         result = item["result"]["data"]
@@ -234,8 +296,36 @@ class PolloClient:
             )
             mime = head[5:].split(";")[0]
         else:
-            url = value
-            session = requests.Session()
+            attempts = min(max(self.settings.request_retries, 0), 2) + 1
+            for attempt in range(attempts):
+                try:
+                    data, mime = self._download_http(value, limit)
+                    break
+                except (requests.RequestException, OSError) as exc:
+                    status = getattr(
+                        getattr(exc, "response", None), "status_code", None
+                    )
+                    transient = status is None or status in (
+                        408,
+                        429,
+                        500,
+                        502,
+                        503,
+                        504,
+                    )
+                    if not transient or attempt + 1 == attempts:
+                        raise UpstreamError(
+                            "素材下载失败", "MEDIA_DOWNLOAD_FAILED", 422
+                        ) from exc
+                    time.sleep(min(2**attempt, 2))
+        if not data or len(data) > limit:
+            raise ValueError("素材为空或过大")
+        return data, mime
+
+    def _download_http(self, url, limit):
+        # Retry only this read-only step, starting with an empty buffer each time.
+        # Never pass account cookies to caller-provided media URLs.
+        with requests.Session() as session:
             session.trust_env = False
             try:
                 for _ in range(6):
@@ -264,14 +354,18 @@ class PolloClient:
                             chunks.append(chunk)
                         data = b"".join(chunks)
                         mime = response.headers.get("Content-Type", "").split(";")[0]
-                        break
-                else:
-                    raise ValueError("素材重定向次数过多")
-            finally:
-                session.close()
-        if not data or len(data) > limit:
-            raise ValueError("素材为空或过大")
-        return data, mime
+                        if not data:
+                            raise UpstreamError(
+                                "素材下载内容为空", "MEDIA_DOWNLOAD_FAILED", 422
+                            )
+                        return data, mime
+            except ValueError as exc:
+                if str(exc).startswith("素材 URL"):
+                    raise UpstreamError(
+                        "素材链接无法下载", "MEDIA_DOWNLOAD_FAILED", 422
+                    ) from exc
+                raise
+        raise UpstreamError("素材重定向次数过多", "MEDIA_DOWNLOAD_FAILED", 422)
 
     def upload_media(self, source, kind, rule):
         data, mime = self.download(
@@ -283,11 +377,16 @@ class PolloClient:
         )
         metadata = {"size": len(data)}
         if kind == "image":
-            with Image.open(io.BytesIO(data)) as im:
-                im.verify()
-            with Image.open(io.BytesIO(data)) as im:
-                metadata.update(width=im.width, height=im.height)
-                mime = Image.MIME.get(im.format, mime)
+            try:
+                with Image.open(io.BytesIO(data)) as im:
+                    im.verify()
+                with Image.open(io.BytesIO(data)) as im:
+                    metadata.update(width=im.width, height=im.height)
+                    mime = Image.MIME.get(im.format, mime)
+            except (OSError, SyntaxError, ValueError) as exc:
+                raise UpstreamError(
+                    "图片格式无法解析", "MEDIA_FORMAT_UNSUPPORTED", 422
+                ) from exc
         else:
             with tempfile.TemporaryDirectory(prefix="pol-media-") as folder:
                 path = Path(folder) / "media"
@@ -370,24 +469,46 @@ class PolloClient:
         signed = self._request(
             "POST", "/api/upload/sign", payload={"filename": filename, "type": kind}
         )
+        if (
+            not isinstance(signed, dict)
+            or not isinstance(signed.get("sign"), str)
+            or not signed.get("accessURL")
+        ):
+            raise UpstreamError(
+                "上传签名响应无效", "UPLOAD_FAILED", stage="upload_sign"
+            )
         destination = urlsplit(signed.get("sign", ""))
         if destination.scheme != "https" or not (destination.hostname or "").endswith(
             ".r2.cloudflarestorage.com"
         ):
-            raise UpstreamError("上传签名目标无效")
+            raise UpstreamError(
+                "上传签名目标无效", "UPLOAD_FAILED", stage="upload_sign"
+            )
         # Separate session: never forward account cookies to storage or caller media hosts.
         with requests.Session() as upload_session:
             upload_session.trust_env = False
-            response = upload_session.put(
-                signed["sign"],
-                data=data,
-                headers={"Content-Type": mime or "application/octet-stream"},
-                timeout=self.settings.media_timeout_seconds,
-                allow_redirects=False,
-                proxies={"http": self.proxy, "https": self.proxy} if self.proxy else {},
-            )
+            try:
+                response = upload_session.put(
+                    signed["sign"],
+                    data=data,
+                    headers={"Content-Type": mime or "application/octet-stream"},
+                    timeout=self.settings.media_timeout_seconds,
+                    allow_redirects=False,
+                    proxies={"http": self.proxy, "https": self.proxy}
+                    if self.proxy
+                    else {},
+                )
+            except requests.RequestException as exc:
+                raise UpstreamError(
+                    "素材上传请求失败", "UPLOAD_FAILED", stage="upload_storage"
+                ) from exc
             if not 200 <= response.status_code < 300:
-                raise UpstreamError("素材上传失败", "UPLOAD_FAILED")
+                raise UpstreamError(
+                    "素材上传被拒绝",
+                    "UPLOAD_REJECTED",
+                    response.status_code,
+                    stage="upload_storage",
+                )
         completed = self.rpc(
             "uploadAsset.complete",
             {"accessURL": signed["accessURL"], "fileName": filename},
@@ -470,9 +591,14 @@ class PolloClient:
         try:
             result = self.rpc("recipe.submit", body, mutation=True)
         except UpstreamError as exc:
-            if exc.status_code >= 500 or exc.code in (
-                "NETWORK_ERROR",
-                "INVALID_RESPONSE",
+            if (
+                exc.status_code >= 500
+                or exc.status_code in (408, 425)
+                or exc.code
+                in (
+                    "NETWORK_ERROR",
+                    "INVALID_RESPONSE",
+                )
             ):
                 raise SubmissionUnknown() from exc
             raise

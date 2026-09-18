@@ -32,11 +32,18 @@ from app.schemas import (
     SettingsPatch,
 )
 from app.service import PolService
+from app.task_errors import public_failure
 
 
 BASE_DIR = Path(__file__).resolve().parent
 database = Database(settings.database_path, settings.account_default_concurrency)
 service = PolService(database, settings)
+
+
+class GenerationRequestError(Exception):
+    def __init__(self, error):
+        self.error = error
+        super().__init__(error["message"])
 
 
 @asynccontextmanager
@@ -57,6 +64,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+
+
+@app.exception_handler(GenerationRequestError)
+async def generation_request_error(_: Request, exc: GenerationRequestError):
+    return JSONResponse(
+        status_code=422, content={"detail": str(exc), "error": exc.error}
+    )
 
 
 def _admin_token(pol_admin: str | None = Cookie(default=None)) -> None:
@@ -116,6 +130,12 @@ def _create(payload: dict[str, Any], *, synchronous: bool = False) -> dict[str, 
             task = service.wait_task(str(task["id"]))
         return task
     except Exception as exc:
+        if isinstance(exc, ValueError):
+            failure = public_failure(
+                {"error_code": "INVALID_REQUEST", "error_message": str(exc)}
+            )
+            if failure["category"].startswith("MEDIA_"):
+                raise GenerationRequestError(failure) from exc
         raise _detail(exc) from exc
 
 

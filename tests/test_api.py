@@ -175,3 +175,51 @@ def test_download_variants_and_unknown_outcome(api):
         c.get(f"/v1/videos/{task}", headers=headers).json()["error"]["outcome"]
         == "unknown"
     )
+
+
+def test_failure_contract_across_polling_adapters(api):
+    c, db = api
+    headers = {"X-API-Key": "api-key"}
+    task = c.post(
+        "/v1/videos", headers=headers, json={"prompt": "scene", "model": "sd-2-5"}
+    ).json()["id"]
+    db.update_task(
+        task,
+        status="failed",
+        error_code="UPLOAD_FAILED",
+        error_message="private diagnostic",
+    )
+    expected = {
+        "code": "UPLOAD_FAILED",
+        "category": "UPSTREAM_MAINTENANCE",
+        "message": "上游维护中，请稍后再试~",
+        "outcome": "rejected",
+        "refunded": False,
+    }
+    for path in (
+        f"/v1/videos/{task}",
+        f"/v1/responses/{task}",
+        f"/api/v3/contents/generations/tasks/{task}",
+    ):
+        response = c.get(path, headers=headers)
+        body = response.json()
+        if "data" in body and isinstance(body["data"], dict):
+            body = body["data"]
+        assert body["error"] == expected
+        assert "private diagnostic" not in response.text
+
+
+def test_media_validation_has_same_classification_before_task_creation(api):
+    c, db = api
+    response = c.post(
+        "/v1/videos",
+        headers={"X-API-Key": "api-key"},
+        json={
+            "model": "sd-2-0",
+            "prompt": "scene",
+            "image_urls": [f"https://example.org/{i}.png" for i in range(10)],
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["category"] == "MEDIA_LIMIT_EXCEEDED"
+    assert response.json()["detail"] == "素材超限，请修改后再试~"

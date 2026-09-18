@@ -122,6 +122,29 @@ def test_ambiguous_submit_blocks_retry(setup):
     assert db.get_account(a["id"])["status"] == "login_required"
 
 
+def test_upload_rejection_returns_typed_error_and_leaves_account_usable(
+    setup, monkeypatch
+):
+    from app.pollo_client import UpstreamError
+
+    db, service, account = setup
+
+    def rejected(*args):
+        raise UpstreamError("Forbidden", "UPLOAD_REJECTED", 403, stage="upload_sign")
+
+    monkeypatch.setattr(FakeClient, "prepare", rejected)
+    job = service.create_task(request())
+    done = service.wait_task(job["id"], 5)
+    assert done["error_message"] == "上游维护中，请稍后再试~"
+    assert service.public_task(done)["error"]["category"] == "UPSTREAM_MAINTENANCE"
+    assert service.public_task(done)["error"]["outcome"] == "rejected"
+    assert service.public_task(done)["error"]["refunded"] is False
+    assert FakeClient.submits == 0
+    saved = db.get_account(account["id"])
+    assert saved["status"] == "active" and saved["reserved_balance"] == 0
+    assert saved["active_tasks"] == 0 and saved["last_balance"] == 14
+
+
 def test_restart_resumes_record_and_does_not_debit_twice(setup):
     db, s, a = setup
     from app.model_catalog import normalize_generation_request

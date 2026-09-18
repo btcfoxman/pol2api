@@ -122,3 +122,13 @@ node --check app/static/app.js
 `GET /v1/videos/{id}/content?variant=best&index=0` 跳转到首个优质结果；`variant` 还支持 `original`、`no_watermark`、`preview`。无水印版本不可用返回 403，不会用预览冒充；`refresh=true` 使用原任务 ID 更新过期链接。控制台原始视频下载使用同样逻辑。
 
 详细协议与画质证据见 [第二轮记录](docs/research/round2-models-downloads.md)。外部终态错误包含 `error.outcome`：`rejected`/`failed` 为已知拒绝/失败，`unknown` 表示可能已提交，不应自动换渠道再次生成。
+
+## 失败分类
+
+任务失败返回 `error.code`（诊断码）、`error.category`（归一化分类）、`error.message`、`error.outcome` 和 `error.refunded`。控制台与三种查询接口使用相同提示。上传签名、存储上传或上传确认被拒绝时，保留具体审核原因；没有审核原因的上传拒绝归类为 `UPSTREAM_MAINTENANCE`，返回 `上游维护中，请稍后再试~`，不会因此将有效账号标成登录失效。
+
+内容审核区分文本、图片、视频、输出视频和通用内容，另有真人限制、队列中断、素材时长、数量/大小、格式及下载失败分类。提交前发现素材超限时返回 HTTP 422，响应同时提供 `detail` 和相同结构的 `error`。当前仍支持 data URL；仅当上游明确拒绝非外链素材时返回外链限制提示。
+
+含“积分已返还”的提示需要失败详情中的 `refundCreditDecimal` 足额覆盖原任务积分。未扣款、释放本地预留、部分退款、查询超时和提交结果不明均不声明已退款；`refunded=false` 时省略退款字样。分类不改变 `outcome`，不能仅凭分类重提结果未知的任务。原始错误保存在管理员审计记录中，不直接透出到公共接口。
+
+素材下载遇到 TLS 断连、连接/读取超时及临时 HTTP 故障时，按 `request_retries` 最多尝试 3 次；每次重新校验外链并清空下载缓冲区。持续失败返回 `MEDIA_DOWNLOAD_FAILED`。素材读取重试不重复提交生成任务，403/404、格式和大小限制不自动重试。
