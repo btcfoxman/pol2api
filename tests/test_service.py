@@ -254,10 +254,25 @@ def test_retry_query_keeps_record_and_does_not_submit_or_charge_again(setup):
     assert db.get_account(a["id"])["last_balance"] == 2
 
 
-def test_terminal_copyright_refund_keeps_message_and_net_cost_consistent(
-    setup, monkeypatch
+@pytest.mark.parametrize(
+    "failure_code,category,message",
+    [
+        (
+            3008,
+            "OUTPUT_MODERATION_FAILED",
+            "生成的视频内容违规，请修改描述后重试，积分已返还~",
+        ),
+        (
+            3000,
+            "CONTENT_MODERATION_FAILED",
+            "检测到内容有敏感或违规情况，请修改后重试，积分已返还～",
+        ),
+    ],
+)
+def test_terminal_moderation_refund_keeps_message_and_net_cost_consistent(
+    setup, monkeypatch, failure_code, category, message
 ):
-    from app.task_errors import COPYRIGHT_REFUND_MESSAGE
+    from app.task_errors import COPYRIGHT_REFUND_MESSAGE, SENSITIVE_INPUT_REFUND_MESSAGE
 
     db, service, account = setup
     monkeypatch.setattr(
@@ -265,8 +280,10 @@ def test_terminal_copyright_refund_keeps_message_and_net_cost_consistent(
     )
     failed = {
         "status": "failed",
-        "failCode": 3008,
-        "failMsg": COPYRIGHT_REFUND_MESSAGE,
+        "failCode": failure_code,
+        "failMsg": COPYRIGHT_REFUND_MESSAGE
+        if failure_code == 3008
+        else SENSITIVE_INPUT_REFUND_MESSAGE,
         "refundCreditDecimal": None,
     }
 
@@ -287,8 +304,8 @@ def test_terminal_copyright_refund_keeps_message_and_net_cost_consistent(
         "charged": 12,
         "source": "upstream_failure_message",
     }
-    assert service.public_task(done)["error"]["category"] == "OUTPUT_MODERATION_FAILED"
-    assert done["error_message"] == "生成的视频内容违规，请修改描述后重试，积分已返还~"
+    assert service.public_task(done)["error"]["category"] == category
+    assert done["error_message"] == message
     assert FakeClient.submits == 1
     future = service._futures.get(job["id"])
     if future is not None:

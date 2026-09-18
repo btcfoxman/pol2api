@@ -98,6 +98,59 @@ def test_wan_duration_hailuo_resolution_and_pollo_pro():
     assert results[3]["_recipe"] == "multi2video"
 
 
+@pytest.mark.parametrize(
+    "alias,resolution",
+    [("wan-3.0-480p", "480p"), ("wan-3.0", "720p"), ("wan-3.0-1080p", "1080p")],
+)
+@pytest.mark.parametrize("mode", ["text", "image", "reference"])
+def test_wan_aliases_prepare_each_mode_and_keep_dynamic_quote(
+    monkeypatch, alias, resolution, mode
+):
+    request = {
+        "model": alias,
+        "prompt": "scene",
+        "generation_mode": mode,
+        "duration": 4,
+    }
+    if mode == "image":
+        request.update(image_url=IMAGE, image_tail_url=IMAGE + "?tail")
+    elif mode == "reference":
+        request.update(
+            image_urls=[IMAGE],
+            video_urls=["https://example.com/ref.mp4"],
+            audio_urls=["https://example.com/ref.mp3"],
+            prompt="图1 视频1 音频1",
+        )
+    payload = normalize_generation_request(request, Settings())
+    client = PolloClient({"team_id": "project"}, Settings())
+    monkeypatch.setattr(client, "manifest", lambda p: RECIPES["wan-v3-0"][p["_recipe"]])
+    monkeypatch.setattr(
+        client,
+        "upload_media",
+        lambda src, kind, rule: {kind: src["value"], "type": kind, "metadata": {}},
+    )
+    calls = []
+    monkeypatch.setattr(
+        client,
+        "rpc",
+        lambda name, body, **kw: calls.append((name, deepcopy(body)))
+        or {"cost": 999, "discountCost": 7.5},
+    )
+    try:
+        body, _, cost = client.prepare(payload)
+    finally:
+        client.close()
+    assert body["modelKey"] == body["userInput"]["model"] == "wan-v3-0"
+    assert body["userInput"]["resolution"] == resolution
+    assert body["userInput"]["generateAudio"] is True
+    assert cost == 7.5 and calls[0][0] == "recipe.estimateTask"
+    if mode == "reference":
+        assert body["recipeCode"] == "ref2video"
+        assert body["userInput"]["prompt"] == "[@image_1] [@video_1] [@audio_1]"
+    else:
+        assert body["recipeCode"] == "multi2video" and "refs" not in body["userInput"]
+
+
 def test_original_and_official_download_precede_preview(monkeypatch):
     client = PolloClient({}, Settings())
     detail = {

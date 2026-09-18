@@ -128,3 +128,28 @@ def test_content_api_and_text_mode():
         {"model": "sd-2-5", "prompt": "a landscape"}, Settings()
     )
     assert text["_recipe"] == "multi2video"
+
+
+def test_wan_public_alias_capabilities_and_resolution_conflicts():
+    models = {m["id"]: m for m in public_models()}
+    for alias, resolution in (
+        ("wan-3.0-480p", "480p"),
+        ("wan-3.0", "720p"),
+        ("wan-3.0-1080p", "1080p"),
+    ):
+        caps = models[alias]["capabilities"]
+        assert caps["default_resolution"] == resolution
+        assert set(caps["generation_modes"]) == {"reference", "text", "image"}
+        assert caps["durations"] == list(range(2, 31))
+        assert caps["media_limits"] == {"images": 10, "videos": 5, "audio": 5}
+        if alias != "wan-3.0":
+            assert caps["resolutions"] == [resolution]
+            with pytest.raises(ValueError, match="分辨率"):
+                normalize_generation_request(
+                    {"model": alias, "prompt": "scene", "resolution": "720p"},
+                    Settings(),
+                )
+    with pytest.raises(ValueError):
+        normalize_generation_request(
+            {"model": "wan-3.0", "prompt": "scene", "duration": 31}, Settings()
+        )

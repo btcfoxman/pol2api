@@ -30,6 +30,9 @@ def test_api_auth_and_model_list(api):
     response = c.get("/v1/models", headers={"Authorization": "Bearer api-key"})
     assert response.status_code == 200
     assert "sd-2-0-4k" in [m["id"] for m in response.json()["data"]]
+    assert {"wan-3.0", "wan-3.0-480p", "wan-3.0-1080p"} <= {
+        m["id"] for m in response.json()["data"]
+    }
     assert c.get("/api/accounts").status_code == 401
 
 
@@ -59,6 +62,36 @@ def test_external_routes_create_query_results(api):
         json={"model": "sd-2-5", "prompt": "x", "resolution": "4k"},
     )
     assert invalid.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "route,model",
+    [
+        ("/v1/videos", "wan-3.0-480p"),
+        ("/v1/responses", "wan-3.0"),
+        ("/api/v3/contents/generations/tasks", "wan-3.0-1080p"),
+    ],
+)
+def test_wan_alias_submission_and_query_adapters(api, route, model):
+    client, db = api
+    headers = {"X-API-Key": "api-key"}
+    payload = {"model": model, "duration": 4}
+    payload["input" if route == "/v1/responses" else "prompt"] = "scene"
+    result = client.post(route, headers=headers, json=payload)
+    assert result.status_code == 200
+    body = result.json()
+    task_id = body["data"]["id"] if route.startswith("/api/v3") else body["id"]
+    task = db.get_task(task_id)
+    assert task["request"]["upstream_model"] == "wan-v3-0"
+    assert task["request"]["model"] == model
+    db.update_task(
+        task_id,
+        generation_id="123",
+        status="succeeded",
+        result_urls=["https://example.com/wan-original.mp4"],
+    )
+    result = client.get("/v1/videos/" + task_id, headers=headers).json()
+    assert result["status"] == "succeeded"
 
 
 def test_admin_settings_sync_and_task_defaults(api):

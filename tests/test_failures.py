@@ -3,6 +3,7 @@ import pytest
 from app.task_errors import (
     COPYRIGHT_REFUND_MESSAGE,
     MESSAGE_VARIANTS,
+    SENSITIVE_INPUT_REFUND_MESSAGE,
     classify_failure,
     public_failure,
     refund_receipt,
@@ -145,6 +146,31 @@ def copyright_task():
     )
 
 
+def sensitive_input_task():
+    value = copyright_task()
+    value["error_message"] = "生成失败，请重试~"
+    detail = value["upstream_response"]["detail"]
+    for row in (detail, detail["generateRecord"], detail["generations"][0]):
+        row.update(failCode=3000, failMsg=SENSITIVE_INPUT_REFUND_MESSAGE)
+    return value
+
+
+def test_sensitive_input_receipt_does_not_guess_which_media_was_flagged():
+    value = sensitive_input_task()
+    value["request"].update(image_urls=["https://example.org/frame.jpg"] * 4)
+    result = public_failure(value)
+    assert result["category"] == "CONTENT_MODERATION_FAILED"
+    assert result["message"] == "检测到内容有敏感或违规情况，请修改后重试，积分已返还～"
+    assert result["refunded"] is True
+    assert result["refund_source"] == "upstream_failure_message"
+    assert refund_receipt(value)["credits"] == 96
+    assert (
+        classify_failure("GENERATION_FAILED", SENSITIVE_INPUT_REFUND_MESSAGE)
+        == result["category"]
+    )
+    assert classify_failure("3000", "Unknown generation failure") == "GENERATION_FAILED"
+
+
 def test_observed_copyright_failure_keeps_output_scope_and_explicit_receipt():
     result = public_failure(copyright_task())
     assert result["category"] == "OUTPUT_MODERATION_FAILED"
@@ -170,6 +196,7 @@ def test_copyright_moderation_does_not_default_to_generic_failure(message, categ
     assert classify_failure("GENERATION_FAILED", message) == category
 
 
+@pytest.mark.parametrize("factory", [copyright_task, sensitive_input_task])
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -182,22 +209,27 @@ def test_copyright_moderation_does_not_default_to_generic_failure(message, categ
         ("failMsg", "Credits refunded pending review."),
     ],
 )
-def test_text_receipt_cannot_override_conflicting_or_uncertain_evidence(field, value):
-    value_task = copyright_task()
+def test_text_receipt_cannot_override_conflicting_or_uncertain_evidence(
+    factory, field, value
+):
+    value_task = factory()
     value_task["upstream_response"]["detail"][field] = value
     error = public_failure(value_task)
     assert error["refunded"] is False
     assert "积分已返还" not in error["message"]
 
 
-def test_text_receipt_is_not_inferred_from_client_error_message_or_multi_output():
-    value_task = copyright_task()
+@pytest.mark.parametrize("factory", [copyright_task, sensitive_input_task])
+def test_text_receipt_is_not_inferred_from_client_error_message_or_multi_output(
+    factory,
+):
+    value_task = factory()
     value_task["upstream_response"]["detail"]["generations"] *= 2
     assert public_failure(value_task)["refunded"] is False
-    value_task = copyright_task()
+    value_task = factory()
     value_task["request"]["n"] = 2
     assert public_failure(value_task)["refunded"] is False
-    value_task = copyright_task()
+    value_task = factory()
     value_task["error_code"] = "SUBMISSION_UNKNOWN"
     assert public_failure(value_task)["refunded"] is False
     assert public_failure(value_task)["outcome"] == "unknown"

@@ -37,12 +37,20 @@ MESSAGE_VARIANTS = {
     "图片违规，请修改后重试~": "IMAGE_MODERATION_FAILED",
 }
 
-# Observed terminal Pollo response. The numeric refund field is null for this
-# error; accept its explicit receipt only for one failed output and code 3008.
+# Observed terminal Pollo responses with null numeric refund fields. Accept an
+# explicit receipt only when one failed output and all parent records agree.
 COPYRIGHT_REFUND_MESSAGE = (
     "This output was flagged for potential copyright issues. "
     "Please try a different prompt. Credits refunded."
 )
+SENSITIVE_INPUT_REFUND_MESSAGE = (
+    "Sensitive input flagged by the third-party model. "
+    "Please modify your input. Credits refunded."
+)
+MODERATION_RECEIPTS = {
+    "3000": (SENSITIVE_INPUT_REFUND_MESSAGE, "CONTENT_MODERATION_FAILED"),
+    "3008": (COPYRIGHT_REFUND_MESSAGE, "OUTPUT_MODERATION_FAILED"),
+}
 
 
 def message_for(category: str, refunded: bool = False, original: str = "") -> str:
@@ -66,12 +74,15 @@ def classify_failure(code: str = "", message: str = "", *, stage: str = "") -> s
         return code
     if code == "3008":
         return "OUTPUT_MODERATION_FAILED"
+    observed = MODERATION_RECEIPTS.get(code)
+    if observed and message == observed[0]:
+        return observed[1]
     text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", raw_code + " " + message)
     text = re.sub(r"[_-]+", " ", text).lower()
     # Output review takes priority even when its message also mentions input media.
     moderation = bool(
         re.search(
-            r"moderation|sensitive\s*content|content.*(?:violat|reject)|policy[. ]*violation"
+            r"moderation|sensitive\s*(?:content|input)|content.*(?:violat|reject)|policy[. ]*violation"
             r"|violat.*(?:policy|safety)|safety (?:check|filter)|nsfw|违规|敏感|审核.{0,8}(?:失败|拒绝)"
             r"|copyright.{0,30}(?:issues?|restrictions?|violations?)|版权.{0,15}(?:问题|违规|限制)",
             text,
@@ -209,8 +220,11 @@ def refund_receipt(task: dict[str, Any]) -> dict[str, Any]:
             }
         outputs = detail.get("generations") or []
         request = task.get("request") or {}
+        receipt_code = str(detail.get("failCode"))
+        expected = MODERATION_RECEIPTS.get(receipt_code)
         if (
-            isinstance(outputs, list)
+            expected is not None
+            and isinstance(outputs, list)
             and len(outputs) == 1
             and request.get("n", 1) == 1
             and str(record.get("id") or task["generation_id"])
@@ -218,8 +232,8 @@ def refund_receipt(task: dict[str, Any]) -> dict[str, Any]:
             and all(
                 isinstance(row, dict)
                 and row.get("status") == "failed"
-                and str(row.get("failCode")) == "3008"
-                and row.get("failMsg") == COPYRIGHT_REFUND_MESSAGE
+                and str(row.get("failCode")) == receipt_code
+                and row.get("failMsg") == expected[0]
                 for row in (detail, record, outputs[0])
             )
             and outputs[0].get("refundCreditDecimal") is None

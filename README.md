@@ -91,6 +91,9 @@ Seedance 无后缀模型默认 **720p**；显式分辨率后缀不允许与请�
 | `sd-2-5` | `seedance-2-5` | 720p |
 | `sd-2-5-480p` | `seedance-2-5` | 480p |
 | `sd-2-5-1080p` | `seedance-2-5` | 1080p |
+| `wan-3.0-480p` | `wan-v3-0` | 480p |
+| `wan-3.0` | `wan-v3-0` | 720p |
+| `wan-3.0-1080p` | `wan-v3-0` | 1080p |
 
 也支持上述四种 Seedance 上游 modelKey 直接调用，以及 Pollo 2/2.5/3、Wan 3/Prime、MiniMax H3/H3 Max/Hailuo 03/H3 Fast 的已确认模式；具体名称和能力见 `/v1/models`。2.0 系列支持 9 图/3 音频/3 视频、4–15 秒；2.5 支持 30 图/10 音频/10 视频、4–30 秒。素材大小、总时长及其他约束在提交前用实时 manifest 再校验。无视觉素材时标准/Fast/2.5 走 `multi2video`；Mini 目前要求至少一个图片或视频参考，因为捕获的文生视频模型列表不含 Mini。
 
@@ -129,7 +132,7 @@ node --check app/static/app.js
 
 内容审核区分文本、图片、视频、输出视频和通用内容，另有真人限制、队列中断、素材时长、数量/大小、格式及下载失败分类。提交前发现素材超限时返回 HTTP 422，响应同时提供 `detail` 和相同结构的 `error`。当前仍支持 data URL；仅当上游明确拒绝非外链素材时返回外链限制提示。
 
-含“积分已返还”的提示优先依据失败详情中的 `refundCreditDecimal`。已实测的版权输出审核 `failCode=3008` 会把数值退款字段留空，但明确返回 `Credits refunded.`；仅当单个输出、父记录均已失败且错误码/完整提示一致时，接受该上游声明，并标记 `refund_source=upstream_failure_message`。数值回执标记为 `refundCreditDecimal`，明确的零/部分退款优先于文字。足额退款的净消耗为 0；账户余额始终从上游刷新，不依据提示重复加回。
+含“积分已返还”的提示优先依据失败详情中的 `refundCreditDecimal`。已实测的版权输出审核 `failCode=3008` 与输入敏感审核 `3000` 会把数值退款字段留空，但明确返回 `Credits refunded.`；仅当单个输出、父记录均已失败且错误码/完整提示匹配已记录的上游响应时，接受该上游声明，并标记 `refund_source=upstream_failure_message`。数值回执标记为 `refundCreditDecimal`，明确的零/部分退款优先于文字。足额退款的净消耗为 0；账户余额始终从上游刷新，不依据提示重复加回。
 
 未扣款、释放本地预留、部分退款、查询超时和提交结果不明均不声明已足额退款；`refunded=false` 时省略退款字样。分类不改变 `outcome`，不能仅凭分类重提结果未知的任务。原始错误和退款依据保存在管理员审计记录中，不直接透出到公共接口。
 

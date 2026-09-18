@@ -23,3 +23,9 @@ ffprobe 实测像素总数 3,686,400，大于已捕获的 Seedance 2.0 Mini/2.5 
 两条 Seedance 2.5 任务在生成后失败，`failCode=3008`，说明为输出涉及潜在版权问题并明确声明 `Credits refunded.`。重新查询同一上游 ID 后，父记录和唯一输出仍返回相同终态及说明，`refundCreditDecimal` 均为空。
 
 此类错误归入 `OUTPUT_MODERATION_FAILED`，提示“生成的视频内容违规，请修改描述后重试，积分已返还~”。保留原始诊断码和失败说明，退款来源注明 `upstream_failure_message`。这说明上游声明已退积分，不是独立的余额流水核销；不把无关调用方文本、尚未失败、多输出或有冲突的数值退款字段当作足额退款证据。计费净消耗按照已接受的上游退款声明修正，余额继续以上游余额接口为准。
+
+## 输入敏感审核（后续样本）
+
+Seedance 2.0 Fast 参考模式任务与 Wan 3.0 浏览器参考模式任务均返回 `failCode=3000`，说明为 `Sensitive input flagged by the third-party model. Please modify your input. Credits refunded.`。上游未明确区分是哪种输入触发审核，因此归入 `CONTENT_MODERATION_FAILED`，返回“检测到内容有敏感或违规情况，请修改后重试，积分已返还～”，不根据任务含图片就推断为图片或真人问题。
+
+退款证据沿用上述严格单输出核验规则，将这一组完整错误码/消息加入已观察回执；数值退款字段的冲突、未知提交状态或多输出仍不能依据文字推断足额退款。

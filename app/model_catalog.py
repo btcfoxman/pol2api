@@ -33,6 +33,9 @@ DEFAULT_MODEL_MAP = {
     "sd-2-5": "seedance-2-5",
     "sd-2-5-480p": "seedance-2-5",
     "sd-2-5-1080p": "seedance-2-5",
+    "wan-3.0": "wan-v3-0",
+    "wan-3.0-480p": "wan-v3-0",
+    "wan-3.0-1080p": "wan-v3-0",
 }
 ALIASED_RESOLUTIONS = {
     key: (
