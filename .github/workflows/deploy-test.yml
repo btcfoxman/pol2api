@@ -70,6 +70,10 @@ jobs:
       IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
+        env:
+          https_proxy: ${{ vars.RUNNER_HTTPS_PROXY }}
+          http_proxy: ${{ vars.RUNNER_HTTPS_PROXY }}
+          no_proxy: localhost,127.0.0.1,::1
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.IMAGE_REGISTRY }}

@@ -26,6 +26,8 @@
 
 GitHub `GITHUB_TOKEN` 的 `contents:read` 和 `packages:write` 权限用于 checkout 和 GHCR。部署不依赖 SSH Secrets，依靠主机上的独立 runner。仅 `pre` 推送和手动运行触发，不执行外部 PR 的服务器任务。
 
+服务器直连 GitHub 受限时，仓库变量 `RUNNER_HTTPS_PROXY` 可指定 HTTP 代理。3.5 使用 `http://127.0.0.1:10809`，仅作用于该 runner 的 checkout 步骤，不修改主机或其他仓库的全局 Git 配置。
+
 服务使用授权 Cookie，会话更新通过管理页面或账号同步 API。容器不启动浏览器；迁移数据库时应将持久化设置 `proxy_host_override` 改为 `host.docker.internal`，并关闭 `browser_recovery_enabled`，避免本地设置覆盖容器默认值。
 
 ## 更新与回滚
