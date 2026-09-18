@@ -252,3 +252,46 @@ def test_retry_query_keeps_record_and_does_not_submit_or_charge_again(setup):
     done = s.wait_task(task["id"], 5)
     assert done["status"] == "succeeded" and FakeClient.submits == 0
     assert db.get_account(a["id"])["last_balance"] == 2
+
+
+def test_terminal_copyright_refund_keeps_message_and_net_cost_consistent(
+    setup, monkeypatch
+):
+    from app.task_errors import COPYRIGHT_REFUND_MESSAGE
+
+    db, service, account = setup
+    monkeypatch.setattr(
+        FakeClient, "status", lambda *a: {"id": 123, "status": "failed"}
+    )
+    failed = {
+        "status": "failed",
+        "failCode": 3008,
+        "failMsg": COPYRIGHT_REFUND_MESSAGE,
+        "refundCreditDecimal": None,
+    }
+
+    def detail(*args):
+        FakeClient.balance = 14  # Upstream balance endpoint reflects the refund.
+        return {
+            **failed,
+            "generateRecord": {**failed, "id": 123, "creditDecimal": "12"},
+            "generations": [dict(failed)],
+        }
+
+    monkeypatch.setattr(FakeClient, "detail", detail)
+    job = service.create_task(request())
+    done = service.wait_task(job["id"], 5)
+    assert done["error_code"] == "GENERATION_FAILED" and done["actual_cost"] == 0
+    assert done["upstream_response"]["refund"] == {
+        "credits": 12,
+        "charged": 12,
+        "source": "upstream_failure_message",
+    }
+    assert service.public_task(done)["error"]["category"] == "OUTPUT_MODERATION_FAILED"
+    assert done["error_message"] == "生成的视频内容违规，请修改描述后重试，积分已返还~"
+    assert FakeClient.submits == 1
+    future = service._futures.get(job["id"])
+    if future is not None:
+        future.result(timeout=5)
+    saved = db.get_account(account["id"])
+    assert saved["last_balance"] == 14 and saved["reserved_balance"] == 0

@@ -18,7 +18,7 @@ from app.model_catalog import (
 )
 from app.pollo_client import PolloClient, SubmissionUnknown, UpstreamError, result_urls
 from app.schemas import SettingsPatch
-from app.task_errors import failure_diagnostic, public_failure
+from app.task_errors import failure_diagnostic, public_failure, refund_receipt
 
 LOGGER = logging.getLogger("pol2api")
 TERMINAL = {"succeeded", "failed", "expired"}
@@ -501,13 +501,21 @@ class PolService:
                             else float(self.db.get_task(task_id)["estimated_cost"])
                         )
                         if raw != "succeed":
-                            refund = detail.get("refundCreditDecimal")
-                            cost = max(cost - float(refund or 0), 0)
                             audit["failure"] = {
                                 "stage": "generation",
                                 "message": failure_diagnostic(detail)
                                 or failure_diagnostic(status),
                             }
+                            receipt = refund_receipt(
+                                {
+                                    **self.db.get_task(task_id),
+                                    "error_code": "GENERATION_FAILED",
+                                    "upstream_response": audit,
+                                }
+                            )
+                            if receipt:
+                                audit["refund"] = receipt
+                                cost = max(cost - receipt["credits"], 0)
                         failure = (
                             public_failure(
                                 {

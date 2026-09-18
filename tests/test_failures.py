@@ -1,6 +1,12 @@
 import pytest
 
-from app.task_errors import MESSAGE_VARIANTS, classify_failure, public_failure
+from app.task_errors import (
+    COPYRIGHT_REFUND_MESSAGE,
+    MESSAGE_VARIANTS,
+    classify_failure,
+    public_failure,
+    refund_receipt,
+)
 
 
 def task(message, refund=None, charged="12", **extra):
@@ -115,3 +121,91 @@ def test_nested_generation_error_is_used_without_reading_prompt():
     )
     assert result["category"] == "IMAGE_MODERATION_FAILED"
     assert result["refunded"] is True
+
+
+def copyright_task():
+    failed = {
+        "status": "failed",
+        "failCode": 3008,
+        "failMsg": COPYRIGHT_REFUND_MESSAGE,
+        "refundCreditDecimal": None,
+    }
+    return task(
+        COPYRIGHT_REFUND_MESSAGE,
+        "0",
+        charged="96",
+        request={"n": 1},
+        upstream_response={
+            "detail": {
+                **failed,
+                "generateRecord": {**failed, "id": "123", "creditDecimal": "96"},
+                "generations": [dict(failed)],
+            },
+        },
+    )
+
+
+def test_observed_copyright_failure_keeps_output_scope_and_explicit_receipt():
+    result = public_failure(copyright_task())
+    assert result["category"] == "OUTPUT_MODERATION_FAILED"
+    assert result["message"] == "生成的视频内容违规，请修改描述后重试，积分已返还~"
+    assert result["outcome"] == "failed" and result["refunded"] is True
+    assert result["refund_source"] == "upstream_failure_message"
+    assert refund_receipt(copyright_task())["credits"] == 96
+
+
+@pytest.mark.parametrize(
+    "message,category",
+    [
+        (COPYRIGHT_REFUND_MESSAGE, "OUTPUT_MODERATION_FAILED"),
+        (
+            "The generated video may be related to copyright restrictions and has been blocked.",
+            "OUTPUT_MODERATION_FAILED",
+        ),
+        ("Input image contains copyright violations", "IMAGE_MODERATION_FAILED"),
+        ("Text contains copyright violations", "TEXT_MODERATION_FAILED"),
+    ],
+)
+def test_copyright_moderation_does_not_default_to_generic_failure(message, category):
+    assert classify_failure("GENERATION_FAILED", message) == category
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("refundCreditDecimal", "0"),
+        ("refundCreditDecimal", "24"),
+        ("refundCreditDecimal", "bad"),
+        ("status", "processing"),
+        ("failCode", 9999),
+        ("failMsg", "Credits will be refunded."),
+        ("failMsg", "Credits refunded pending review."),
+    ],
+)
+def test_text_receipt_cannot_override_conflicting_or_uncertain_evidence(field, value):
+    value_task = copyright_task()
+    value_task["upstream_response"]["detail"][field] = value
+    error = public_failure(value_task)
+    assert error["refunded"] is False
+    assert "积分已返还" not in error["message"]
+
+
+def test_text_receipt_is_not_inferred_from_client_error_message_or_multi_output():
+    value_task = copyright_task()
+    value_task["upstream_response"]["detail"]["generations"] *= 2
+    assert public_failure(value_task)["refunded"] is False
+    value_task = copyright_task()
+    value_task["request"]["n"] = 2
+    assert public_failure(value_task)["refunded"] is False
+    value_task = copyright_task()
+    value_task["error_code"] = "SUBMISSION_UNKNOWN"
+    assert public_failure(value_task)["refunded"] is False
+    assert public_failure(value_task)["outcome"] == "unknown"
+    value_task = task(COPYRIGHT_REFUND_MESSAGE)
+    assert public_failure(value_task)["refunded"] is False
+
+
+def test_copyright_code_without_english_message_is_classified():
+    value_task = task("Unknown")
+    value_task["raw_status"]["failCode"] = 3008
+    assert public_failure(value_task)["category"] == "OUTPUT_MODERATION_FAILED"

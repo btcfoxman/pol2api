@@ -37,6 +37,13 @@ MESSAGE_VARIANTS = {
     "图片违规，请修改后重试~": "IMAGE_MODERATION_FAILED",
 }
 
+# Observed terminal Pollo response. The numeric refund field is null for this
+# error; accept its explicit receipt only for one failed output and code 3008.
+COPYRIGHT_REFUND_MESSAGE = (
+    "This output was flagged for potential copyright issues. "
+    "Please try a different prompt. Credits refunded."
+)
+
 
 def message_for(category: str, refunded: bool = False, original: str = "") -> str:
     message = (
@@ -57,18 +64,22 @@ def classify_failure(code: str = "", message: str = "", *, stage: str = "") -> s
         return MESSAGE_VARIANTS[message]
     if code in MESSAGES or (code in REFUND_MESSAGES and code != "GENERATION_FAILED"):
         return code
+    if code == "3008":
+        return "OUTPUT_MODERATION_FAILED"
     text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", raw_code + " " + message)
     text = re.sub(r"[_-]+", " ", text).lower()
     # Output review takes priority even when its message also mentions input media.
     moderation = bool(
         re.search(
             r"moderation|sensitive\s*content|content.*(?:violat|reject)|policy[. ]*violation"
-            r"|violat.*(?:policy|safety)|safety (?:check|filter)|nsfw|违规|敏感|审核.{0,8}(?:失败|拒绝)",
+            r"|violat.*(?:policy|safety)|safety (?:check|filter)|nsfw|违规|敏感|审核.{0,8}(?:失败|拒绝)"
+            r"|copyright.{0,30}(?:issues?|restrictions?|violations?)|版权.{0,15}(?:问题|违规|限制)",
             text,
         )
     )
     if moderation and re.search(
-        r"(?:output|generated)\s+(?:video|audio)|生成的视频", text
+        r"(?:output|generated)\s+(?:video|audio)|\b(?:this|the) output\b|生成的视频",
+        text,
     ):
         return "OUTPUT_MODERATION_FAILED"
     if re.search(
@@ -158,34 +169,74 @@ def failure_diagnostic(detail: Any) -> str:
         )
     for item in detail.get("generations") or []:
         values.append(failure_diagnostic(item))
-    return " ".join(v for v in values if v)[:2000]
+    # Some failed records carry the only reason on the parent generation record.
+    if isinstance(detail.get("generateRecord"), dict):
+        values.append(failure_diagnostic(detail["generateRecord"]))
+    return " ".join(dict.fromkeys(v for v in values if v))[:2000]
 
 
-def refund_confirmed(task: dict[str, Any]) -> bool:
+def refund_receipt(task: dict[str, Any]) -> dict[str, Any]:
     # A released local reservation or an uncharged rejection is not an upstream refund.
     if task.get("error_code") != "GENERATION_FAILED" or not task.get("generation_id"):
-        return False
+        return {}
     detail = (
         (task.get("upstream_response") or {}).get("detail")
         or task.get("raw_status")
         or {}
     )
     if not isinstance(detail, dict):
-        return False
+        return {}
     try:
-        if isinstance(detail.get("refundCreditDecimal"), bool):
-            return False
-        refund = float(detail.get("refundCreditDecimal") or 0)
         record = detail.get("generateRecord") or {}
-        charged = float(record.get("creditDecimal") or task.get("estimated_cost") or 0)
-        return (
-            math.isfinite(refund)
-            and math.isfinite(charged)
-            and charged > 0
-            and refund >= charged
-        )
+        raw_charge = record.get("creditDecimal")
+        raw_charge = task.get("estimated_cost") if raw_charge is None else raw_charge
+        if isinstance(raw_charge, bool):
+            return {}
+        charged = float(raw_charge or 0)
+        if not math.isfinite(charged) or charged <= 0:
+            return {}
+        raw_refund = detail.get("refundCreditDecimal")
+        if raw_refund is not None:
+            if isinstance(raw_refund, bool):
+                return {}
+            amount = float(raw_refund)
+            if not math.isfinite(amount) or amount < 0:
+                return {}
+            return {
+                "credits": min(amount, charged),
+                "charged": charged,
+                "source": "refundCreditDecimal",
+            }
+        outputs = detail.get("generations") or []
+        request = task.get("request") or {}
+        if (
+            isinstance(outputs, list)
+            and len(outputs) == 1
+            and request.get("n", 1) == 1
+            and str(record.get("id") or task["generation_id"])
+            == str(task["generation_id"])
+            and all(
+                isinstance(row, dict)
+                and row.get("status") == "failed"
+                and str(row.get("failCode")) == "3008"
+                and row.get("failMsg") == COPYRIGHT_REFUND_MESSAGE
+                for row in (detail, record, outputs[0])
+            )
+            and outputs[0].get("refundCreditDecimal") is None
+        ):
+            return {
+                "credits": charged,
+                "charged": charged,
+                "source": "upstream_failure_message",
+            }
     except (ValueError, TypeError, AttributeError):
-        return False
+        return {}
+    return {}
+
+
+def refund_confirmed(task: dict[str, Any]) -> bool:
+    receipt = refund_receipt(task)
+    return bool(receipt and receipt["credits"] >= receipt["charged"])
 
 
 def public_failure(task: dict[str, Any]) -> dict[str, Any]:
@@ -197,12 +248,14 @@ def public_failure(task: dict[str, Any]) -> dict[str, Any]:
     )
     # Failed generation details may contain the specific code below a generic failMsg.
     if category == "GENERATION_FAILED":
+        detail = audit.get("detail") or task.get("raw_status") or {}
         category = classify_failure(
-            "", failure_diagnostic(audit.get("detail") or task.get("raw_status"))
+            detail.get("failCode", "") if isinstance(detail, dict) else "",
+            failure_diagnostic(detail),
         )
     refunded = refund_confirmed(task)
     code = task.get("error_code") or "GENERATION_FAILED"
-    return {
+    result = {
         "code": code,
         "category": category,
         "message": message_for(category, refunded, original),
@@ -213,3 +266,6 @@ def public_failure(task: dict[str, Any]) -> dict[str, Any]:
         else "rejected",
         "refunded": refunded,
     }
+    if refunded:
+        result["refund_source"] = refund_receipt(task)["source"]
+    return result
