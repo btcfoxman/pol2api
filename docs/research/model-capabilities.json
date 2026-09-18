@@ -1,0 +1,2017 @@
+{
+  "captured_at": "2026-09-18",
+  "models": [
+    {
+      "recipeCode": "multi2video",
+      "modelKey": "pollo-v2-5",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v2"
+        },
+        "image": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            }
+          ],
+          "default": "16:9"
+        },
+        "duration": {
+          "type": "integer",
+          "enum": [
+            {
+              "value": 4,
+              "x-i18n-key": "4"
+            },
+            {
+              "value": 5,
+              "x-i18n-key": "5"
+            },
+            {
+              "value": 6,
+              "x-i18n-key": "6"
+            },
+            {
+              "value": 7,
+              "x-i18n-key": "7"
+            },
+            {
+              "value": 8,
+              "x-i18n-key": "8"
+            },
+            {
+              "value": 9,
+              "x-i18n-key": "9"
+            },
+            {
+              "value": 10,
+              "x-i18n-key": "10"
+            },
+            {
+              "value": 11,
+              "x-i18n-key": "11"
+            },
+            {
+              "value": 12,
+              "x-i18n-key": "12"
+            },
+            {
+              "value": 15,
+              "x-i18n-key": "15"
+            }
+          ],
+          "default": 5
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "basic",
+              "x-i18n-key": "Basic"
+            },
+            {
+              "value": "pro",
+              "x-i18n-key": "Pro"
+            }
+          ],
+          "default": "basic"
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "default": true
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "720p",
+              "x-i18n-key": "720p"
+            },
+            {
+              "value": "1080p",
+              "x-i18n-key": "1080p"
+            }
+          ],
+          "default": "720p"
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "reference_config": null,
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "mode",
+          "aspectRatio",
+          "generateAudio",
+          "numOutputs"
+        ]
+      },
+      "capabilities": [
+        "image2video",
+        "text2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "has(values.image) && dyn(values.image) != null && size(values.image) > 0",
+          "action": "form.setHidden('aspectRatio', true)"
+        },
+        {
+          "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+          "action": "form.setRequired('prompt', true)"
+        },
+        {
+          "when": "(values.duration == 15 && values.generateAudio != true) && (!(has(values.image) && dyn(values.image) != null && size(values.image) > 0))",
+          "action": "form.setValues({'generateAudio': true})"
+        },
+        {
+          "when": "(values.duration == 15 && values.generateAudio != true) && (has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+          "action": "form.setValues({'generateAudio': true})"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "numOutputs": 1,
+        "protectionMode": false
+      },
+      "evidence": {
+        "request_line": 2968,
+        "response_body_line": 3696,
+        "batch_index": 0,
+        "body_sha256": "681ef388e7fa654e50d83bfbd5bdd680cd8bb1b627fe8cfd650c96d8c045bd1d"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "seedance-2-5",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "prompt",
+        "refs"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 30,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "720p",
+              "x-i18n-key": "720p"
+            },
+            {
+              "value": "1080p",
+              "x-i18n-key": "1080p"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "adaptive",
+              "x-i18n-key": "Auto"
+            },
+            {
+              "value": "21:9",
+              "x-i18n-key": "21:9"
+            },
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            }
+          ],
+          "default": "adaptive"
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "default": true
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 50,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 30,
+            "supportedTypes": [
+              ".jpeg",
+              ".jpg",
+              ".png",
+              ".webp",
+              ".bmp",
+              ".gif"
+            ],
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 31457280
+          },
+          "video": {
+            "maxNum": 10,
+            "supportedTypes": [
+              ".mp4",
+              ".mov"
+            ],
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "minTotalPixels": 409600,
+            "maxTotalPixels": 2086876,
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 209715200,
+            "minDuration": 2,
+            "maxDuration": 30.2,
+            "maxTotalDuration": 30.2,
+            "minFps": 24,
+            "maxFps": 60
+          },
+          "audio": {
+            "maxNum": 10,
+            "maxFilesize": 15728640,
+            "maxTotalFilesize": 67108864,
+            "minDuration": 2,
+            "maxDuration": 30,
+            "maxTotalDuration": 30
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "generateAudio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 21476,
+        "response_body_line": 21533,
+        "batch_index": 0,
+        "body_sha256": "ab3594646c64f1799273fbc1d14a01e76833fa1b9a83ae7107e66be14c30fb68"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "wan-v3-0",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 30,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "720p",
+              "x-i18n-key": "720p"
+            },
+            {
+              "value": "1080p",
+              "x-i18n-key": "1080p"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "adaptive",
+              "x-i18n-key": "Auto"
+            },
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            }
+          ],
+          "default": "adaptive"
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "default": true
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 22,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 10,
+            "supportedTypes": [
+              ".jpeg",
+              ".jpg",
+              ".png",
+              ".webp",
+              ".bmp"
+            ],
+            "minSize": "240*240",
+            "maxSize": "8000*8000",
+            "minRatio": 0.125,
+            "maxRatio": 8,
+            "maxFilesize": 20971520
+          },
+          "video": {
+            "maxNum": 5,
+            "supportedTypes": [
+              ".mp4",
+              ".mov"
+            ],
+            "minSize": "240*240",
+            "maxSize": "4096*4096",
+            "minRatio": 0.125,
+            "maxRatio": 8,
+            "maxFilesize": 104857600,
+            "minDuration": 1,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          },
+          "audio": {
+            "maxNum": 5,
+            "maxFilesize": 15728640,
+            "minDuration": 1,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          },
+          "file": {
+            "maxNum": 1,
+            "supportedTypes": [
+              ".docx",
+              ".doc",
+              ".xlsx",
+              ".xls",
+              ".pptx",
+              ".ppt",
+              ".pdf",
+              ".txt",
+              ".key",
+              ".pages",
+              ".numbers",
+              ".md"
+            ],
+            "maxFilesize": 104857600,
+            "hardBlockFileSize": true,
+            "maxPages": 50
+          },
+          "link": {
+            "maxNum": 1
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "generateAudio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video' || r.type == 'file' || r.type == 'link')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 21476,
+        "response_body_line": 21533,
+        "batch_index": 1,
+        "body_sha256": "ab3594646c64f1799273fbc1d14a01e76833fa1b9a83ae7107e66be14c30fb68"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "wan-v3-0-prime",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 30,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "720p",
+              "x-i18n-key": "720p"
+            },
+            {
+              "value": "1080p",
+              "x-i18n-key": "1080p"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "adaptive",
+              "x-i18n-key": "Auto"
+            },
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            }
+          ],
+          "default": "adaptive"
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "default": true
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 22,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 10,
+            "supportedTypes": [
+              ".jpeg",
+              ".jpg",
+              ".png",
+              ".webp",
+              ".bmp"
+            ],
+            "minSize": "240*240",
+            "maxSize": "8000*8000",
+            "minRatio": 0.125,
+            "maxRatio": 8,
+            "maxFilesize": 20971520
+          },
+          "video": {
+            "maxNum": 5,
+            "supportedTypes": [
+              ".mp4",
+              ".mov"
+            ],
+            "minSize": "240*240",
+            "maxSize": "4096*4096",
+            "minRatio": 0.125,
+            "maxRatio": 8,
+            "maxFilesize": 104857600,
+            "minDuration": 1,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          },
+          "audio": {
+            "maxNum": 5,
+            "maxFilesize": 15728640,
+            "minDuration": 1,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          },
+          "file": {
+            "maxNum": 1,
+            "supportedTypes": [
+              ".docx",
+              ".doc",
+              ".xlsx",
+              ".xls",
+              ".pptx",
+              ".ppt",
+              ".pdf",
+              ".txt",
+              ".key",
+              ".pages",
+              ".numbers",
+              ".md"
+            ],
+            "maxFilesize": 104857600,
+            "hardBlockFileSize": true,
+            "maxPages": 50
+          },
+          "link": {
+            "maxNum": 1
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "generateAudio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video' || r.type == 'file' || r.type == 'link')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 21532,
+        "response_body_line": 21546,
+        "batch_index": 0,
+        "body_sha256": "c20fea02a18a14d06d420b6027741115e2b5fb94de51fc30493ff8c8d5890697"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "minimax-hailuo-03",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 7000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 15,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "768p",
+              "x-i18n-key": "768p"
+            },
+            {
+              "value": "2K",
+              "x-i18n-key": "2K"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "auto",
+              "x-i18n-key": "Auto"
+            },
+            {
+              "value": "21:9",
+              "x-i18n-key": "21:9"
+            },
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            }
+          ],
+          "default": "auto"
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 15,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 9,
+            "supportedTypes": [
+              ".jpg",
+              ".jpeg",
+              ".png",
+              ".webp",
+              ".heic",
+              ".heif"
+            ],
+            "minSize": "256*256",
+            "maxSize": "5760*5760",
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 31457280
+          },
+          "video": {
+            "maxNum": 3,
+            "supportedTypes": [
+              ".mp4",
+              ".mov"
+            ],
+            "minSize": "256*256",
+            "maxSize": "5760*5760",
+            "maxFilesize": 52428800,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15,
+            "minFps": 23.976,
+            "maxFps": 60
+          },
+          "audio": {
+            "maxNum": 3,
+            "maxFilesize": 15728640,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 21532,
+        "response_body_line": 21546,
+        "batch_index": 1,
+        "body_sha256": "c20fea02a18a14d06d420b6027741115e2b5fb94de51fc30493ff8c8d5890697"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "seedance-2-0",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 15,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "720p",
+              "x-i18n-key": "720p"
+            },
+            {
+              "value": "1080p",
+              "x-i18n-key": "1080p"
+            },
+            {
+              "value": "4K",
+              "x-i18n-key": "4K"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            },
+            {
+              "value": "21:9",
+              "x-i18n-key": "21:9"
+            }
+          ],
+          "default": "16:9"
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "default": true
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 15,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 9,
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "maxFilesize": 31457280
+          },
+          "video": {
+            "maxNum": 3,
+            "supportedTypes": [
+              ".mp4",
+              ".mov",
+              ".avi"
+            ],
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "minTotalPixels": 409600,
+            "maxTotalPixels": 2086876,
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 52428800,
+            "minDuration": 2,
+            "maxDuration": 15.2,
+            "maxTotalDuration": 15.2,
+            "minFps": 24,
+            "maxFps": 60
+          },
+          "audio": {
+            "maxNum": 3,
+            "maxFilesize": 15728640,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "generateAudio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 21545,
+        "response_body_line": 21551,
+        "batch_index": 0,
+        "body_sha256": "faa1b703797e70d54e36ebd362d8e5d2f3aea91d4f072399fa983aec9730ff9c"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "pollo-v3-0",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 15,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "720p",
+              "x-i18n-key": "720p"
+            },
+            {
+              "value": "1080p",
+              "x-i18n-key": "1080p"
+            },
+            {
+              "value": "4K",
+              "x-i18n-key": "4K"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            },
+            {
+              "value": "21:9",
+              "x-i18n-key": "21:9"
+            }
+          ],
+          "default": "16:9"
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "default": true
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "basic",
+              "x-i18n-key": "Basic"
+            },
+            {
+              "value": "pro",
+              "x-i18n-key": "Pro"
+            }
+          ],
+          "default": "basic"
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 13,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 9,
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "maxFilesize": 31457280
+          },
+          "video": {
+            "maxNum": 3,
+            "supportedTypes": [
+              ".mp4",
+              ".mov",
+              ".avi"
+            ],
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "minTotalPixels": 409600,
+            "maxTotalPixels": 2086876,
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 52428800,
+            "minDuration": 2,
+            "maxDuration": 15.2,
+            "maxTotalDuration": 15.2
+          },
+          "audio": {
+            "maxNum": 3,
+            "maxFilesize": 15728640,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "generateAudio",
+          "numOutputs",
+          "refs",
+          "mode"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        },
+        {
+          "when": "values.mode == 'basic'",
+          "action": "form.setProps('resolution', {'disabledOptions': ['1080p', '4K']})"
+        },
+        {
+          "when": "values.mode == 'basic' && (values.resolution == '1080p' || values.resolution == '4K')",
+          "action": "form.setValues({'resolution': '720p'})"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 21785,
+        "response_body_line": 21827,
+        "batch_index": 0,
+        "body_sha256": "73bcfd0614b328a2ba5e9c649450ca2453252ea3f5213a3eda7a47c444af18ae"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "minimax-h3-fast",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 7000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 15,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "21:9",
+              "x-i18n-key": "21:9"
+            },
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            }
+          ],
+          "default": "16:9"
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 15,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 9,
+            "supportedTypes": [
+              ".jpg",
+              ".jpeg",
+              ".png",
+              ".webp",
+              ".heic",
+              ".heif"
+            ],
+            "minSize": "256*256",
+            "maxSize": "5760*5760",
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 31457280
+          },
+          "video": {
+            "maxNum": 3,
+            "supportedTypes": [
+              ".mp4",
+              ".mov"
+            ],
+            "minSize": "256*256",
+            "maxSize": "5760*5760",
+            "maxFilesize": 52428800,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15,
+            "minFps": 23.976,
+            "maxFps": 60
+          },
+          "audio": {
+            "maxNum": 3,
+            "maxFilesize": 15728640,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 21913,
+        "response_body_line": 21921,
+        "batch_index": 0,
+        "body_sha256": "98ae0fbee8ddc6c32a225efc9ff529bae99360a581153c41de573952aa26cf68"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "seedance-2-0-fast",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 15,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "720p",
+              "x-i18n-key": "720p"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            },
+            {
+              "value": "21:9",
+              "x-i18n-key": "21:9"
+            }
+          ],
+          "default": "16:9"
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "default": true
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 15,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 9,
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "maxFilesize": 31457280
+          },
+          "video": {
+            "maxNum": 3,
+            "supportedTypes": [
+              ".mp4",
+              ".mov",
+              ".avi"
+            ],
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "minTotalPixels": 409600,
+            "maxTotalPixels": 2086876,
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 52428800,
+            "minDuration": 2,
+            "maxDuration": 15.2,
+            "maxTotalDuration": 15.2
+          },
+          "audio": {
+            "maxNum": 3,
+            "maxFilesize": 15728640,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "generateAudio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 21915,
+        "response_body_line": 21925,
+        "batch_index": 0,
+        "body_sha256": "0a772bdf2d377ed2e750eefd7fb2271d50eb1b33b7573b98944d5ae8e1ae0664"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "minimax-h3-max",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": false,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 7000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 15,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "768p",
+              "x-i18n-key": "768p"
+            },
+            {
+              "value": "1080p",
+              "x-i18n-key": "1080p"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "auto",
+              "x-i18n-key": "Auto"
+            },
+            {
+              "value": "21:9",
+              "x-i18n-key": "21:9"
+            },
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            }
+          ],
+          "default": "auto"
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 12,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 9,
+            "supportedTypes": [
+              ".jpg",
+              ".jpeg",
+              ".png",
+              ".webp",
+              ".heic",
+              ".heif"
+            ],
+            "minSize": "256*256",
+            "maxSize": "5760*5760",
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 31457280
+          },
+          "video": {
+            "maxNum": 3,
+            "supportedTypes": [
+              ".mp4",
+              ".mov"
+            ],
+            "minSize": "256*256",
+            "maxSize": "5760*5760",
+            "maxFilesize": 52428800,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15,
+            "minFps": 23.976,
+            "maxFps": 60
+          },
+          "audio": {
+            "maxNum": 3,
+            "maxFilesize": 15728640,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 22220,
+        "response_body_line": 22227,
+        "batch_index": 0,
+        "body_sha256": "18f8fec00e3133cc0d9951ddd661d1b2182eed5a13ee9ea7814bb4b26b6f7732"
+      }
+    },
+    {
+      "recipeCode": "ref2video",
+      "modelKey": "seedance-2-0-mini",
+      "evidence_level": "server_manifest_observed",
+      "generation_verified": true,
+      "required": [
+        "refs",
+        "prompt"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "pollo-v3-0"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 15,
+          "default": 5
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "480p",
+              "x-i18n-key": "480p"
+            },
+            {
+              "value": "720p",
+              "x-i18n-key": "720p"
+            }
+          ],
+          "default": "480p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": [
+            {
+              "value": "16:9",
+              "x-i18n-key": "16:9"
+            },
+            {
+              "value": "4:3",
+              "x-i18n-key": "4:3"
+            },
+            {
+              "value": "1:1",
+              "x-i18n-key": "1:1"
+            },
+            {
+              "value": "3:4",
+              "x-i18n-key": "3:4"
+            },
+            {
+              "value": "9:16",
+              "x-i18n-key": "9:16"
+            },
+            {
+              "value": "21:9",
+              "x-i18n-key": "21:9"
+            }
+          ],
+          "default": "16:9"
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "default": true
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "numOutputs": {
+          "type": "number",
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1
+        },
+        "published": {
+          "type": "boolean",
+          "default": false
+        },
+        "protectionMode": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "reference_config": {
+        "maxItems": 15,
+        "refsFormat": "ref2videoV2",
+        "supportsCropper": true,
+        "supportsSubject": true,
+        "upload": {
+          "image": {
+            "maxNum": 9,
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "maxFilesize": 31457280
+          },
+          "video": {
+            "maxNum": 3,
+            "supportedTypes": [
+              ".mp4",
+              ".mov",
+              ".avi"
+            ],
+            "minSize": "300*300",
+            "maxSize": "6000*6000",
+            "minTotalPixels": 409600,
+            "maxTotalPixels": 2086876,
+            "minRatio": 0.4,
+            "maxRatio": 2.5,
+            "maxFilesize": 52428800,
+            "minDuration": 2,
+            "maxDuration": 15.2,
+            "maxTotalDuration": 15.2,
+            "minFps": 24,
+            "maxFps": 60
+          },
+          "audio": {
+            "maxNum": 3,
+            "maxFilesize": 15728640,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        }
+      },
+      "credit_fields": {
+        "fields": [
+          "duration",
+          "resolution",
+          "aspectRatio",
+          "generateAudio",
+          "numOutputs",
+          "refs"
+        ]
+      },
+      "capabilities": [
+        "ref2video"
+      ],
+      "effects": [
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "user.isPaid == false",
+          "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+        },
+        {
+          "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+          "action": "form.setInvalid('refs', 'refsNeedVisual')"
+        }
+      ],
+      "initial_values": {
+        "published": false,
+        "protectionMode": true
+      },
+      "evidence": {
+        "request_line": 22222,
+        "response_body_line": 22231,
+        "batch_index": 0,
+        "body_sha256": "2f77f0e3524d51d609a93b1672cc0210d3c9e6d72b1df5d549753a865ae2e336"
+      }
+    }
+  ],
+  "warning": "Manifest support is not proof of successful generation at every resolution. Explicitly send modelKey and userInput.model; schema model.default may belong to the recipe base model."
+}

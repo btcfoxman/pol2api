@@ -1,0 +1,119 @@
+{
+  "description": "Illustrative only: replace project, media URLs and prompt. Shape follows event line 26319; this synthetic request was not sent.",
+  "method": "POST",
+  "path": "/api/trpc/recipe.submit?batch=1",
+  "headers": {
+    "Content-Type": "application/json",
+    "x-recipe-protocol": "1",
+    "Cookie": "<authorized session cookie jar>"
+  },
+  "body": {
+    "0": {
+      "json": {
+        "recipeCode": "ref2video",
+        "modelKey": "seedance-2-0-mini",
+        "numOutputs": 1,
+        "entitlement": {
+          "unlimited": false
+        },
+        "projectId": "<project_id>",
+        "userInput": {
+          "model": "seedance-2-0-mini",
+          "duration": 4,
+          "resolution": "480p",
+          "aspectRatio": "16:9",
+          "generateAudio": true,
+          "numOutputs": 1,
+          "published": true,
+          "protectionMode": false,
+          "refs": [
+            {
+              "type": "audio",
+              "name": "audio_1",
+              "order": 6,
+              "metadata": {
+                "duration": 5.146,
+                "size": 123556
+              },
+              "audio": "https://media.example.invalid/audio_1.mp3"
+            },
+            {
+              "type": "audio",
+              "name": "audio_2",
+              "order": 7,
+              "metadata": {
+                "duration": 3.291,
+                "size": 52712
+              },
+              "audio": "https://media.example.invalid/audio_2.mp3"
+            },
+            {
+              "type": "image",
+              "name": "image_1",
+              "order": 1,
+              "metadata": {
+                "width": 3072,
+                "height": 1728
+              },
+              "image": "https://media.example.invalid/image_1.png"
+            },
+            {
+              "type": "image",
+              "name": "image_2",
+              "order": 2,
+              "metadata": {
+                "width": 3072,
+                "height": 1728
+              },
+              "image": "https://media.example.invalid/image_2.png"
+            },
+            {
+              "type": "image",
+              "name": "image_3",
+              "order": 3,
+              "metadata": {
+                "width": 3072,
+                "height": 1728
+              },
+              "image": "https://media.example.invalid/image_3.png"
+            },
+            {
+              "type": "image",
+              "name": "image_4",
+              "order": 4,
+              "metadata": {
+                "width": 3840,
+                "height": 2160
+              },
+              "image": "https://media.example.invalid/image_4.png"
+            },
+            {
+              "type": "video",
+              "name": "video_1",
+              "order": 5,
+              "metadata": {
+                "duration": 2,
+                "width": 1280,
+                "height": 1280
+              },
+              "video": "https://media.example.invalid/video_1.mp4"
+            },
+            {
+              "type": "video",
+              "name": "video_2",
+              "order": 6,
+              "metadata": {
+                "duration": 5.088,
+                "width": 1280,
+                "height": 720
+              },
+              "video": "https://media.example.invalid/video_2.mp4"
+            }
+          ],
+          "prompt": "Use [@image_4] as storyboard; [@image_1], [@image_2], [@image_3] as characters, [@audio_1] and [@audio_2] for audio, and [@video_1] and [@video_2] as video references.",
+          "seed": 42
+        }
+      }
+    }
+  }
+}

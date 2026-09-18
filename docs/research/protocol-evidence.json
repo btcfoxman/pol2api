@@ -1,0 +1,696 @@
+{
+  "platform": "Pollo.ai",
+  "capture": "20260918-111653-network",
+  "started_at": "2026-09-18T03:16:53.039705+00:00",
+  "stopped_at": "2026-09-18T03:47:25.348651+00:00",
+  "transport": "native-cdp-network-only",
+  "counts": {
+    "requests": 5138,
+    "responses": 5074,
+    "bodies": 3536,
+    "errors": 0
+  },
+  "events": 27462,
+  "correlated_requests": 5108,
+  "unique_body_files": 1047,
+  "body_unavailable": 83,
+  "network_loading_failed_events": 411,
+  "registration": {
+    "email_created": true,
+    "email_initial_credits": 0,
+    "google_is_new_account": false,
+    "google_credit_grant_observed": false,
+    "signin_claim_mutation_observed": false,
+    "advertised_new_user_credits": 20,
+    "advertised_credits_are_not_a_grant": true,
+    "evidence": {
+      "user.sendRegisterEmailCode": [
+        {
+          "request_line": 506,
+          "response_body_line": 513,
+          "batch_index": null,
+          "body_sha256": "3eb6c2618e954b47453388ff9db7d746161bccb20c00b332c5c55d12763fce58"
+        }
+      ],
+      "user.verifyRegisterEmailCode": [
+        {
+          "request_line": 655,
+          "response_body_line": 697,
+          "batch_index": 0,
+          "body_sha256": "2ec6533ed776cd0872fa68314c51e192eff89fef9ea09a8c202e1c9dca1aebcf"
+        }
+      ],
+      "user.createUserByVerifiedEmail": [
+        {
+          "request_line": 799,
+          "response_body_line": 913,
+          "batch_index": 0,
+          "body_sha256": "f642f851dd7ad6d6bd1a21db88de8347f0b8a70a4a8cdaf115a059450464c57d"
+        }
+      ],
+      "user.getNewUserFreeCredits": [
+        {
+          "request_line": 18597,
+          "response_body_line": 18609,
+          "batch_index": 0,
+          "body_sha256": "72764cc719b454ecc37a2e08645ddd290c31439870b112d126ee703c2d1ac885"
+        }
+      ],
+      "signIn.canSignIn": [
+        {
+          "request_line": 1156,
+          "response_body_line": 1193,
+          "batch_index": 1,
+          "body_sha256": "9a815291bee7144f097e2afc774bd46e19e89376f07be9c7443ca5d949797e18"
+        },
+        {
+          "request_line": 20302,
+          "response_body_line": 20488,
+          "batch_index": 0,
+          "body_sha256": "b87902ac407f791a08b1a1c90887341134ac4a97d99e5a38556dfa1c0066b9b7"
+        }
+      ]
+    }
+  },
+  "credit_snapshots": [
+    {
+      "account": "email_new",
+      "total": 0,
+      "used": 0,
+      "available": 0,
+      "isActiveSub": false,
+      "evidence": {
+        "request_line": 1048,
+        "response_body_line": 1184,
+        "batch_index": 7,
+        "body_sha256": "e09313111c175e3e6ba0e2f5a64b04f2e85d182a8a42583f5b7a638ccaa64dd3"
+      }
+    },
+    {
+      "account": "email_new",
+      "total": 0,
+      "used": 0,
+      "available": 0,
+      "isActiveSub": false,
+      "evidence": {
+        "request_line": 2768,
+        "response_body_line": 3645,
+        "batch_index": 4,
+        "body_sha256": "ee293725b49c179a5c4998ead478685b271d7d01e0ebd651d1305c820efff0df"
+      }
+    },
+    {
+      "account": "email_new",
+      "total": 0,
+      "used": 0,
+      "available": 0,
+      "isActiveSub": false,
+      "evidence": {
+        "request_line": 8864,
+        "response_body_line": 10078,
+        "batch_index": 5,
+        "body_sha256": "10c0370b80401fe9091b54872933ad62716e4c992a185a241d2018b9d77d46a8"
+      }
+    },
+    {
+      "account": "email_new",
+      "total": 0,
+      "used": 0,
+      "available": 0,
+      "isActiveSub": false,
+      "evidence": {
+        "request_line": 12382,
+        "response_body_line": 13528,
+        "batch_index": 5,
+        "body_sha256": "10c0370b80401fe9091b54872933ad62716e4c992a185a241d2018b9d77d46a8"
+      }
+    },
+    {
+      "account": "email_new",
+      "total": 0,
+      "used": 0,
+      "available": 0,
+      "isActiveSub": false,
+      "evidence": {
+        "request_line": 16429,
+        "response_body_line": 16921,
+        "batch_index": 4,
+        "body_sha256": "d991e81c21392a01e36b6769dac443cac65981fb4ac632dc25fad37e464d9c27"
+      }
+    },
+    {
+      "account": "google_existing",
+      "total": 22,
+      "used": 8,
+      "available": 14,
+      "isActiveSub": false,
+      "evidence": {
+        "request_line": 20044,
+        "response_body_line": 20305,
+        "batch_index": 4,
+        "body_sha256": "7327c25ef56aeae4d25e08a7fe493f0819843ae42175f77af1c8d3f8fbc06eb1"
+      }
+    },
+    {
+      "account": "google_existing",
+      "total": 22,
+      "used": 20,
+      "available": 2,
+      "isActiveSub": false,
+      "evidence": {
+        "request_line": 26336,
+        "response_body_line": 26345,
+        "batch_index": 1,
+        "body_sha256": "6538053766ff47dcf67ab2abc23f6ad49848eae0ac9a5587d221cef205e726f1"
+      }
+    },
+    {
+      "account": "google_existing",
+      "total": 22,
+      "used": 20,
+      "available": 2,
+      "isActiveSub": false,
+      "evidence": {
+        "request_line": 27192,
+        "response_body_line": 27197,
+        "batch_index": 0,
+        "body_sha256": "c3a1363a919e5119ae2efa429e0a1e6a01c0a3ba9a1b9cf96d384ffc56bf7f2b"
+      }
+    }
+  ],
+  "pricing_observations": [
+    {
+      "model": "pollo-v2-5",
+      "recipe": "multi2video",
+      "duration": 5,
+      "resolution": "720p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": "basic",
+      "num_outputs": 1,
+      "image_count": 0,
+      "audio_count": 0,
+      "video_count": 0,
+      "video_seconds": [],
+      "audio_seconds": [],
+      "singleCost": 12,
+      "cost": 12,
+      "discountSingleCost": 12,
+      "discountCost": 12,
+      "numOutputs": 1,
+      "entitlementSource": "none",
+      "evidence": [
+        {
+          "request_line": 1171,
+          "response_body_line": 1205,
+          "batch_index": 0,
+          "body_sha256": "d9593d8ca0cd354de7ec00c75d93f428405c3a2dc56d6cb16f78389d9868bb7f"
+        },
+        {
+          "request_line": 3305,
+          "response_body_line": 3821,
+          "batch_index": 0,
+          "body_sha256": "d9593d8ca0cd354de7ec00c75d93f428405c3a2dc56d6cb16f78389d9868bb7f"
+        },
+        {
+          "request_line": 6516,
+          "response_body_line": 6554,
+          "batch_index": 0,
+          "body_sha256": "d9593d8ca0cd354de7ec00c75d93f428405c3a2dc56d6cb16f78389d9868bb7f"
+        },
+        {
+          "request_line": 6579,
+          "response_body_line": 6620,
+          "batch_index": 0,
+          "body_sha256": "d9593d8ca0cd354de7ec00c75d93f428405c3a2dc56d6cb16f78389d9868bb7f"
+        },
+        {
+          "request_line": 9297,
+          "response_body_line": 10130,
+          "batch_index": 0,
+          "body_sha256": "d9593d8ca0cd354de7ec00c75d93f428405c3a2dc56d6cb16f78389d9868bb7f"
+        },
+        {
+          "request_line": 12795,
+          "response_body_line": 13561,
+          "batch_index": 0,
+          "body_sha256": "d9593d8ca0cd354de7ec00c75d93f428405c3a2dc56d6cb16f78389d9868bb7f"
+        },
+        {
+          "request_line": 21070,
+          "response_body_line": 21253,
+          "batch_index": 0,
+          "body_sha256": "d9593d8ca0cd354de7ec00c75d93f428405c3a2dc56d6cb16f78389d9868bb7f"
+        }
+      ]
+    },
+    {
+      "model": "pollo-v3-0",
+      "recipe": "ref2video",
+      "duration": 5,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": "basic",
+      "num_outputs": 1,
+      "image_count": 0,
+      "audio_count": 0,
+      "video_count": 0,
+      "video_seconds": [],
+      "audio_seconds": [],
+      "singleCost": 10,
+      "cost": 10,
+      "discountSingleCost": 10,
+      "discountCost": 10,
+      "numOutputs": 1,
+      "entitlementSource": "none",
+      "evidence": [
+        {
+          "request_line": 21397,
+          "response_body_line": 21402,
+          "batch_index": 0,
+          "body_sha256": "0d5dc0a46a8e70db9fc1a77200a42ffa79f8e1a28e3109aa56977e91b42f7e2f"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0",
+      "recipe": "ref2video",
+      "duration": 5,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 0,
+      "audio_count": 0,
+      "video_count": 0,
+      "video_seconds": [],
+      "audio_seconds": [],
+      "singleCost": 50,
+      "cost": 50,
+      "discountSingleCost": 20,
+      "discountCost": 20,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 21644,
+          "response_body_line": 21657,
+          "batch_index": 0,
+          "body_sha256": "b7e4895845138a894216844cfd68a565f4977699d8719371d3ec4687b8f6b5f7"
+        },
+        {
+          "request_line": 21658,
+          "response_body_line": 21663,
+          "batch_index": 0,
+          "body_sha256": "b7e4895845138a894216844cfd68a565f4977699d8719371d3ec4687b8f6b5f7"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "duration": 5,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 0,
+      "audio_count": 0,
+      "video_count": 0,
+      "video_seconds": [],
+      "audio_seconds": [],
+      "singleCost": 25,
+      "cost": 25,
+      "discountSingleCost": 10,
+      "discountCost": 10,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 22297,
+          "response_body_line": 22314,
+          "batch_index": 0,
+          "body_sha256": "1356279023ad940fb48b9e3d6dc86ef2c929e9ade8f2cf80160b35205bcb53b0"
+        },
+        {
+          "request_line": 22319,
+          "response_body_line": 22334,
+          "batch_index": 0,
+          "body_sha256": "1356279023ad940fb48b9e3d6dc86ef2c929e9ade8f2cf80160b35205bcb53b0"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "duration": 4,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 0,
+      "audio_count": 0,
+      "video_count": 0,
+      "video_seconds": [],
+      "audio_seconds": [],
+      "singleCost": 20,
+      "cost": 20,
+      "discountSingleCost": 8,
+      "discountCost": 8,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 22369,
+          "response_body_line": 22386,
+          "batch_index": 0,
+          "body_sha256": "99aedfb6bfb667f4db4b3b71dcb6476b242b571662db8b6e36036df119311c9e"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "duration": 4,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 4,
+      "audio_count": 0,
+      "video_count": 0,
+      "video_seconds": [],
+      "audio_seconds": [],
+      "singleCost": 20,
+      "cost": 20,
+      "discountSingleCost": 8,
+      "discountCost": 8,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 22877,
+          "response_body_line": 22901,
+          "batch_index": 0,
+          "body_sha256": "99aedfb6bfb667f4db4b3b71dcb6476b242b571662db8b6e36036df119311c9e"
+        },
+        {
+          "request_line": 22907,
+          "response_body_line": 22927,
+          "batch_index": 0,
+          "body_sha256": "99aedfb6bfb667f4db4b3b71dcb6476b242b571662db8b6e36036df119311c9e"
+        },
+        {
+          "request_line": 23878,
+          "response_body_line": 23887,
+          "batch_index": 0,
+          "body_sha256": "99aedfb6bfb667f4db4b3b71dcb6476b242b571662db8b6e36036df119311c9e"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "duration": 4,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 4,
+      "audio_count": 0,
+      "video_count": 1,
+      "video_seconds": [
+        10
+      ],
+      "audio_seconds": [],
+      "singleCost": 39,
+      "cost": 39,
+      "discountSingleCost": 15,
+      "discountCost": 15,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 24201,
+          "response_body_line": 24212,
+          "batch_index": 0,
+          "body_sha256": "5e7aa705e8a18b43b52d86b38efcc88e5c1f752da9912efc0339aaf689f79d47"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "duration": 4,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 4,
+      "audio_count": 2,
+      "video_count": 1,
+      "video_seconds": [
+        10
+      ],
+      "audio_seconds": [
+        5.146,
+        3.291
+      ],
+      "singleCost": 39,
+      "cost": 39,
+      "discountSingleCost": 15,
+      "discountCost": 15,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 24786,
+          "response_body_line": 24801,
+          "batch_index": 0,
+          "body_sha256": "5e7aa705e8a18b43b52d86b38efcc88e5c1f752da9912efc0339aaf689f79d47"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "duration": 4,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 4,
+      "audio_count": 2,
+      "video_count": 2,
+      "video_seconds": [
+        10,
+        2
+      ],
+      "audio_seconds": [
+        5.146,
+        3.291
+      ],
+      "singleCost": 45,
+      "cost": 45,
+      "discountSingleCost": 18,
+      "discountCost": 18,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 25084,
+          "response_body_line": 25101,
+          "batch_index": 0,
+          "body_sha256": "964e803f49120f9e40fedf740fbc4270a1167cad65f0f34acdf8c203367ba2a4"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "duration": 4,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 4,
+      "audio_count": 2,
+      "video_count": 1,
+      "video_seconds": [
+        2
+      ],
+      "audio_seconds": [
+        5.146,
+        3.291
+      ],
+      "singleCost": 17,
+      "cost": 17,
+      "discountSingleCost": 6,
+      "discountCost": 6,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 25175,
+          "response_body_line": 25184,
+          "batch_index": 0,
+          "body_sha256": "cde46a7b1f8e0b38e6e2457979fe758a7d40a05e964788983458dda5e0cf461e"
+        }
+      ]
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "duration": 4,
+      "resolution": "480p",
+      "aspect_ratio": "16:9",
+      "generate_audio": true,
+      "mode": null,
+      "num_outputs": 1,
+      "image_count": 4,
+      "audio_count": 2,
+      "video_count": 2,
+      "video_seconds": [
+        2,
+        5.088
+      ],
+      "audio_seconds": [
+        5.146,
+        3.291
+      ],
+      "singleCost": 31,
+      "cost": 31,
+      "discountSingleCost": 12,
+      "discountCost": 12,
+      "numOutputs": 1,
+      "entitlementSource": "promotion_discount",
+      "evidence": [
+        {
+          "request_line": 25513,
+          "response_body_line": 25525,
+          "batch_index": 0,
+          "body_sha256": "9679f57ab8651b01f098c7cd517a78b427762757a4ef0938f2d38b35a5e11d3e"
+        },
+        {
+          "request_line": 25596,
+          "response_body_line": 25602,
+          "batch_index": 0,
+          "body_sha256": "9679f57ab8651b01f098c7cd517a78b427762757a4ef0938f2d38b35a5e11d3e"
+        },
+        {
+          "request_line": 26346,
+          "response_body_line": 26486,
+          "batch_index": 0,
+          "body_sha256": "9679f57ab8651b01f098c7cd517a78b427762757a4ef0938f2d38b35a5e11d3e"
+        },
+        {
+          "request_line": 26681,
+          "response_body_line": 26704,
+          "batch_index": 0,
+          "body_sha256": "9679f57ab8651b01f098c7cd517a78b427762757a4ef0938f2d38b35a5e11d3e"
+        }
+      ]
+    }
+  ],
+  "generation": {
+    "model": "seedance-2-0-mini",
+    "recipe": "ref2video",
+    "params": {
+      "duration": 4,
+      "resolution": "480p",
+      "aspectRatio": "16:9",
+      "generateAudio": true,
+      "numOutputs": 1,
+      "published": true,
+      "protectionMode": false
+    },
+    "reference_counts": {
+      "audio": 2,
+      "image": 4,
+      "video": 2
+    },
+    "prompt_reference_syntax": "[@<refs[].name>]",
+    "all_mention_names_resolve": true,
+    "order_is_unique": false,
+    "record_id_type": "int",
+    "submit_status": "waiting",
+    "requestLimit": false,
+    "status_transitions": [
+      {
+        "at": "2026-09-18T03:39:03.830505+00:00",
+        "status": "waiting",
+        "waiting": {
+          "waitingIndex": 280,
+          "waitingCount": 281
+        },
+        "evidence": {
+          "request_line": 26336,
+          "response_body_line": 26345,
+          "batch_index": 0,
+          "body_sha256": "6538053766ff47dcf67ab2abc23f6ad49848eae0ac9a5587d221cef205e726f1"
+        }
+      },
+      {
+        "at": "2026-09-18T03:39:54.524112+00:00",
+        "status": "processing",
+        "waiting": null,
+        "evidence": {
+          "request_line": 26840,
+          "response_body_line": 26845,
+          "batch_index": null,
+          "body_sha256": "8d03d8529e1cb0b0faa102ec1bec6e3672232e8f480e0b79aa78ba516440002f"
+        }
+      },
+      {
+        "at": "2026-09-18T03:42:16.245014+00:00",
+        "status": "succeed",
+        "waiting": null,
+        "evidence": {
+          "request_line": 27169,
+          "response_body_line": 27177,
+          "batch_index": null,
+          "body_sha256": "c203c16bc81eaf2d722baf0588f1e1da78c27dda0c39a72d93ff0edd5cdb7917"
+        }
+      }
+    ],
+    "final_status": "succeed",
+    "output_metadata": {
+      "height": 496,
+      "width": 864,
+      "duration": 4.096,
+      "hasAudio": true,
+      "aspectRatio": "54:31"
+    },
+    "duration_ms": 4096,
+    "charged_credits": "12",
+    "credit_type": "reward",
+    "result_url_fields": [
+      "videoUrl",
+      "previewUrl",
+      "mediaUrl"
+    ],
+    "evidence": {
+      "submit": {
+        "request_line": 26319,
+        "response_body_line": 26337,
+        "batch_index": 0,
+        "body_sha256": "fa90a288297c9c647f43bdf8c514d167716c710fa8fbbd1c6694f302d50ed51b"
+      },
+      "final_detail": {
+        "request_line": 27179,
+        "response_body_line": 27191,
+        "batch_index": 0,
+        "body_sha256": "5b9149fbfea2e574a42a4ad5c1e6abb2f2cc1431f56b21b57902aa22ece6655a"
+      }
+    }
+  }
+}

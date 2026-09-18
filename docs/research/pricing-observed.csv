@@ -1,0 +1,12 @@
+model,recipe,duration,resolution,aspect_ratio,generate_audio,mode,num_outputs,image_count,audio_count,video_count,video_seconds,audio_seconds,singleCost,cost,discountSingleCost,discountCost,numOutputs,entitlementSource,request_lines
+pollo-v2-5,multi2video,5,720p,16:9,True,basic,1,0,0,0,[],[],12,12,12,12,1,none,1171;3305;6516;6579;9297;12795;21070
+pollo-v3-0,ref2video,5,480p,16:9,True,basic,1,0,0,0,[],[],10,10,10,10,1,none,21397
+seedance-2-0,ref2video,5,480p,16:9,True,,1,0,0,0,[],[],50,50,20,20,1,promotion_discount,21644;21658
+seedance-2-0-mini,ref2video,5,480p,16:9,True,,1,0,0,0,[],[],25,25,10,10,1,promotion_discount,22297;22319
+seedance-2-0-mini,ref2video,4,480p,16:9,True,,1,0,0,0,[],[],20,20,8,8,1,promotion_discount,22369
+seedance-2-0-mini,ref2video,4,480p,16:9,True,,1,4,0,0,[],[],20,20,8,8,1,promotion_discount,22877;22907;23878
+seedance-2-0-mini,ref2video,4,480p,16:9,True,,1,4,0,1,[10],[],39,39,15,15,1,promotion_discount,24201
+seedance-2-0-mini,ref2video,4,480p,16:9,True,,1,4,2,1,[10],"[5.146, 3.291]",39,39,15,15,1,promotion_discount,24786
+seedance-2-0-mini,ref2video,4,480p,16:9,True,,1,4,2,2,"[10, 2]","[5.146, 3.291]",45,45,18,18,1,promotion_discount,25084
+seedance-2-0-mini,ref2video,4,480p,16:9,True,,1,4,2,1,[2],"[5.146, 3.291]",17,17,6,6,1,promotion_discount,25175
+seedance-2-0-mini,ref2video,4,480p,16:9,True,,1,4,2,2,"[2, 5.088]","[5.146, 3.291]",31,31,12,12,1,promotion_discount,25513;25596;26346;26681

@@ -1,0 +1,29 @@
+services:
+  pol2api:
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:-btcfoxman}/${IMAGE_NAME:-pol2api}:${IMAGE_TAG:-latest}
+    container_name: pol2api
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
+      POL_DATABASE_PATH: /app/data/pol2api.db
+      POL_PROXY_HOST_OVERRIDE: host.docker.internal
+      POL_BROWSER_RECOVERY_ENABLED: 'false'
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ./data:/app/data
+    ports:
+      - '${POL2API_PORT:-8799}:8798'
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8798/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [my-shared-net]
+
+networks:
+  my-shared-net:
+    external: true

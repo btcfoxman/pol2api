@@ -1,0 +1,116 @@
+name: Pre-production Docker
+
+on:
+  push:
+    branches: [pre]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: pol2api-pre
+  cancel-in-progress: false
+
+env:
+  IMAGE_REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: btcfoxman
+  IMAGE_NAME: pol2api
+  IMAGE_REF: ghcr.io/btcfoxman/pol2api
+  POL2API_HOSTNAME: pol2api.aiid.edu.kg
+  POL2API_ORIGIN: http://127.0.0.1:8799
+  CLOUDFLARED_CONFIG: /etc/cloudflared/config.yml
+
+jobs:
+  build:
+    name: Test, build and push
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Verify application
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pytest -q
+          python -m ruff check app tests scripts
+          node --check app/static/app.js
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_REF }}:${{ github.sha }}
+            ${{ env.IMAGE_REF }}:latest
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  deploy:
+    name: Deploy to 3.5 pre
+    needs: build
+    runs-on: [self-hosted, linux, x64, pol2api-pre]
+    env:
+      DEPLOY_PATH: /home/btcfoxman/docker/pol2api
+      DEPLOY_SERVICE: pol2api
+      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull and start service
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          test -f docker-compose.yml
+          test -f .env
+          env_checksum="$(sha256sum .env | cut -d ' ' -f 1)"
+          compose_checksum="$(sha256sum docker-compose.yml | cut -d ' ' -f 1)"
+          export IMAGE_REGISTRY IMAGE_NAMESPACE IMAGE_NAME IMAGE_TAG
+          docker network inspect my-shared-net >/dev/null
+          for attempt in 1 2 3; do
+            if docker compose pull "$DEPLOY_SERVICE"; then break; fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep $((attempt * 10))
+          done
+          docker tag "${IMAGE_REF}:${IMAGE_TAG}" "${IMAGE_REF}:latest"
+          docker compose up -d --no-build "$DEPLOY_SERVICE"
+          test "$env_checksum" = "$(sha256sum .env | cut -d ' ' -f 1)"
+          test "$compose_checksum" = "$(sha256sum docker-compose.yml | cut -d ' ' -f 1)"
+          for attempt in $(seq 1 30); do
+            status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' pol2api)"
+            if [ "$status" = healthy ] && curl -fsS "${POL2API_ORIGIN}/health" >/dev/null; then break; fi
+            if [ "$attempt" -eq 30 ]; then docker ps -a --filter name=pol2api; exit 1; fi
+            sleep 5
+          done
+          docker exec pol2api ffprobe -version >/dev/null
+      - name: Configure Cloudflare Tunnel
+        shell: bash
+        run: bash scripts/configure-tunnel.sh
+      - name: Verify public HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if curl -fsS --max-time 10 "https://${POL2API_HOSTNAME}/health" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["status"] == "ok" and r["service"] == "pol2api"'; then exit 0; fi
+            sleep 5
+          done
+          exit 1
