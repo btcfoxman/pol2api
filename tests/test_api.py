@@ -129,3 +129,49 @@ def test_invalid_external_payload_returns_422(api, invalid):
         json={"model": "sd-2-5", "prompt": "a video", **invalid},
     )
     assert response.status_code == 422
+
+
+def test_download_variants_and_unknown_outcome(api):
+    c, db = api
+    headers = {"X-API-Key": "api-key"}
+    task = c.post(
+        "/v1/videos", headers=headers, json={"model": "sd-2-5", "prompt": "scene"}
+    ).json()["id"]
+    db.update_task(
+        task,
+        status="succeeded",
+        result_urls=["https://example.com/original.mp4"],
+        upstream_response={
+            "downloads": [
+                {
+                    "url": "https://example.com/original.mp4",
+                    "original_url": "https://example.com/original.mp4",
+                    "preview_url": "https://example.com/preview.mp4",
+                    "no_watermark_url": "",
+                    "watermark_verified": False,
+                }
+            ]
+        },
+    )
+    assert (
+        c.get(
+            f"/v1/videos/{task}/content?variant=no_watermark", headers=headers
+        ).status_code
+        == 403
+    )
+    r = c.get(
+        f"/v1/videos/{task}/content?variant=original",
+        headers=headers,
+        follow_redirects=False,
+    )
+    assert r.headers["location"].endswith("original.mp4")
+    assert c.get(f"/api/tasks/{task}/download").status_code == 401
+    c.post("/login", data={"token": "admin-key"})
+    assert (
+        c.get(f"/api/tasks/{task}/download", follow_redirects=False).status_code == 307
+    )
+    db.update_task(task, status="expired", generation_id="123", error_code="TIMEOUT")
+    assert (
+        c.get(f"/v1/videos/{task}", headers=headers).json()["error"]["outcome"]
+        == "unknown"
+    )

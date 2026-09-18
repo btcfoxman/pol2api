@@ -96,7 +96,7 @@ jobs:
             sleep $((attempt * 10))
           done
           docker tag "${IMAGE_REF}:${IMAGE_TAG}" "${IMAGE_REF}:latest"
-          docker compose up -d --no-build "$DEPLOY_SERVICE"
+          docker compose up -d --no-build --force-recreate "$DEPLOY_SERVICE"
           test "$env_checksum" = "$(sha256sum .env | cut -d ' ' -f 1)"
           test "$compose_checksum" = "$(sha256sum docker-compose.yml | cut -d ' ' -f 1)"
           for attempt in $(seq 1 30); do

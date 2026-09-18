@@ -18,7 +18,7 @@ from PIL import Image
 import requests
 
 from app.config import rewrite_loopback_proxy
-from app.model_catalog import MODELS, enum_values
+from app.recipes import input_values, media_rules
 
 
 class UpstreamError(RuntimeError):
@@ -403,27 +403,8 @@ class PolloClient:
     def prepare(self, payload):
         manifest = self.manifest(payload)
         props = manifest["schema"]["properties"]
-        for name, value in (
-            ("resolution", payload["resolution"]),
-            ("aspectRatio", payload["aspect_ratio"]),
-        ):
-            allowed = enum_values(props.get(name, {}))
-            if allowed and value not in allowed:
-                raise ValueError(f"实时模型配置不支持 {name}={value}")
-        rule = props.get("duration", {})
-        durations = enum_values(rule)
-        if durations and payload["duration"] not in durations:
-            raise ValueError("实时配置不支持该时长")
-        if (
-            not rule.get("minimum", 0)
-            <= payload["duration"]
-            <= rule.get("maximum", float("inf"))
-        ):
-            raise ValueError("实时配置不支持该时长")
-        rules = (
-            props.get("refs", {}).get("x-ui-config")
-            or MODELS[payload["upstream_model"]]["reference_config"]
-        )
+        user_input = input_values(payload, manifest)
+        rules = media_rules(manifest, payload["_recipe"])
         total_refs = sum(
             len(payload.get(field, [])) for field in ("_images", "_videos", "_audio")
         )
@@ -443,7 +424,11 @@ class PolloClient:
             if len(items) > limits.get("maxNum", 0):
                 raise ValueError("实时素材数量限制已变化")
             for source in items:
-                ref = self.upload_media(source, kind, limits)
+                upload_rule = limits
+                if payload["_recipe"] == "multi2video":
+                    frame = "image" if not refs else "imageTail"
+                    upload_rule = props[frame]["x-ui-config"]["upload"]["image"]
+                ref = self.upload_media(source, kind, upload_rule)
                 ref["order"] = len(refs) + 1
                 refs.append(ref)
             subset = [r for r in refs if r["type"] == kind]
@@ -455,22 +440,11 @@ class PolloClient:
                 "maxTotalFilesize", float("inf")
             ):
                 raise ValueError("参考素材总大小超出限制")
-        user_input = {
-            **manifest.get("initialValues", {}),
-            "model": payload["upstream_model"],
-            "prompt": payload["prompt"],
-            "duration": payload["duration"],
-            "resolution": payload["resolution"],
-            "aspectRatio": payload["aspect_ratio"],
-            "numOutputs": payload["n"],
-            "generateAudio": payload.get("generate_audio", True),
-            "published": payload.get("published", True),
-            "protectionMode": payload.get("protection_mode", False),
-        }
         if payload["_recipe"] == "ref2video":
             user_input["refs"] = refs
-        if payload.get("seed") is not None:
-            user_input["seed"] = int(payload["seed"])
+        else:
+            for frame, ref in zip(("image", "imageTail"), refs):
+                user_input[frame] = ref["image"]
         body = {
             "recipeCode": payload["_recipe"],
             "modelKey": payload["upstream_model"],
@@ -523,14 +497,80 @@ class PolloClient:
     def detail(self, record_id):
         return self.rpc("generation.queryRecordDetail", {"id": int(record_id)})
 
+    def downloads(self, detail):
+        results = []
+        for item in video_outputs(detail):
+            value = dict(item)
+            warning = ""
+            if value.get("videoId") and not value.get("videoUrlNoWatermark"):
+                try:
+                    data = self.rpc(
+                        "video.getVideoNoWatermarkUrl",
+                        {"videoId": str(value["videoId"])},
+                        mutation=True,
+                    )
+                    value["videoUrlNoWatermark"] = data.get("videoUrlNoWatermark")
+                except Exception as exc:
+                    # Download entitlement/transport failures never change generation outcome.
+                    warning = getattr(exc, "code", "DOWNLOAD_LOOKUP_FAILED")
+            urls = result_urls(value)
+            if not urls:
+                continue
+            clean = https_url(value.get("videoUrlNoWatermark"))
+            original = https_url(value.get("mediaUrl"))
+            row = dict(
+                url=urls[0],
+                preview_url=https_url(value.get("videoUrl") or value.get("previewUrl")),
+                original_url=original,
+                no_watermark_url=clean,
+                watermark_verified=bool(clean),
+                source="official_download"
+                if clean
+                else "original"
+                if original
+                else "preview",
+                metadata=value.get("videoMeta") or {},
+            )
+            if warning:
+                row["download_warning"] = warning
+            results.append(row)
+        return results
+
+
+def https_url(value):
+    return value if isinstance(value, str) and value.startswith("https://") else ""
+
+
+def video_outputs(detail):
+    items = detail.get("generations") or [detail]
+    return [
+        {**detail, **item, "generations": []}
+        if item.get("videoId") and item.get("videoId") == detail.get("videoId")
+        else {**item, "generations": []}
+        for item in items
+    ]
+
 
 def result_urls(detail):
-    outputs = detail.get("generations") or [detail]
+    outputs = video_outputs(detail)
     return list(
         dict.fromkeys(
             url
             for item in outputs
-            if (url := item.get("videoUrl") or item.get("mediaUrl"))
-            and url.startswith("https://")
+            if (
+                url := next(
+                    (
+                        https_url(item.get(field))
+                        for field in (
+                            "videoUrlNoWatermark",
+                            "mediaUrl",
+                            "videoUrl",
+                            "previewUrl",
+                        )
+                        if https_url(item.get(field))
+                    ),
+                    "",
+                )
+            )
         )
     )

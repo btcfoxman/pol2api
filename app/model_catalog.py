@@ -3,12 +3,26 @@
 from copy import deepcopy
 import json
 import math
-from pathlib import Path
 import re
 from typing import Any
 
+from app.recipes import (
+    RECIPES,
+    enum_values,
+    media_rules,
+    recipe_capabilities,
+    validate_parameters,
+)
+
 VIDEO_DIMENSIONS = {}  # Output dimensions come from the completed task, never invented.
-RESOLUTION_ALIASES = {"4k": "4K", "480p": "480p", "720p": "720p", "1080p": "1080p"}
+RESOLUTION_ALIASES = {
+    "4k": "4K",
+    "2k": "2K",
+    "480p": "480p",
+    "720p": "720p",
+    "768p": "768p",
+    "1080p": "1080p",
+}
 DEFAULT_MODEL_MAP = {
     "sd-2-0": "seedance-2-0",
     "sd-2-0-1080p": "seedance-2-0",
@@ -32,13 +46,16 @@ ALIASED_RESOLUTIONS = {
     )
     for key in DEFAULT_MODEL_MAP
 }
-MODELS = {
-    m["modelKey"]: m
-    for m in json.loads(
-        (Path(__file__).parent / "capabilities.json").read_text(encoding="utf-8")
-    )["models"]
-    if m["modelKey"].startswith("seedance-2-")
-}
+MODELS = {}
+for _model, _recipes in RECIPES.items():
+    _preferred = "ref2video" if "ref2video" in _recipes else "multi2video"
+    _manifest = _recipes[_preferred]
+    MODELS[_model] = dict(
+        modelKey=_model,
+        properties=_manifest["schema"]["properties"],
+        reference_config=media_rules(_manifest, _preferred),
+        initial_values=_manifest.get("initialValues", {}),
+    )
 MEDIA_LIMITS = {"images": 30, "videos": 10, "audio": 10}
 
 
@@ -52,26 +69,46 @@ def model_map_json(raw: Any) -> str:
     return json.dumps({**DEFAULT_MODEL_MAP, **source}, ensure_ascii=False)
 
 
-def enum_values(prop):
-    return [
-        item["value"] if isinstance(item, dict) else item
-        for item in prop.get("enum", [])
-    ]
-
-
 def public_models(raw=""):
     mapping = json.loads(model_map_json(raw))
     mapping.update({key: key for key in MODELS})
     result = []
     for alias, key in mapping.items():
-        spec = MODELS[key]
-        p = spec["properties"]
-        upload = spec["reference_config"]["upload"]
-        resolutions = (
-            [ALIASED_RESOLUTIONS[alias]]
-            if alias in ALIASED_RESOLUTIONS
-            and alias.endswith(("-480p", "-1080p", "-4k"))
-            else enum_values(p["resolution"])
+        variants = {}
+        for recipe, manifest in RECIPES[key].items():
+            caps = recipe_capabilities(manifest, recipe)
+            if recipe == "ref2video":
+                variants["reference"] = caps
+            else:
+                variants["text"] = {
+                    **caps,
+                    "media_limits": {"images": 0, "videos": 0, "audio": 0},
+                    "max_total_references": 0,
+                }
+                if caps["media_limits"]["images"]:
+                    variants["image"] = caps
+        primary = (
+            "reference"
+            if "reference" in variants
+            else "image"
+            if "image" in variants
+            else "text"
+        )
+        caps = deepcopy(variants[primary])
+        if alias in ALIASED_RESOLUTIONS:
+            caps["default_resolution"] = ALIASED_RESOLUTIONS[alias]
+            if alias.endswith(("-480p", "-1080p", "-4k")):
+                for variant in variants.values():
+                    variant["resolutions"] = [ALIASED_RESOLUTIONS[alias]]
+                    variant["default_resolution"] = ALIASED_RESOLUTIONS[alias]
+                caps["resolutions"] = [ALIASED_RESOLUTIONS[alias]]
+        caps.update(
+            generation_modes=list(variants),
+            modes=variants,
+            default_generation_mode=primary,
+            evidence="server_manifest",
+            verified_generation=key
+            in {"seedance-2-0-mini", "seedance-2-0", "seedance-2-5"},
         )
         result.append(
             dict(
@@ -79,24 +116,7 @@ def public_models(raw=""):
                 object="model",
                 owned_by="pollo",
                 meta={"label": alias, "upstream_model": key},
-                capabilities=dict(
-                    durations=list(
-                        range(p["duration"]["minimum"], p["duration"]["maximum"] + 1)
-                    ),
-                    resolutions=resolutions,
-                    default_resolution=ALIASED_RESOLUTIONS.get(alias, "720p"),
-                    aspect_ratios=enum_values(p["aspectRatio"]),
-                    media_limits={
-                        "images": upload["image"]["maxNum"],
-                        "videos": upload["video"]["maxNum"],
-                        "audio": upload["audio"]["maxNum"],
-                    },
-                    max_total_references=spec["reference_config"]["maxItems"],
-                    generate_audio=True,
-                    max_outputs=4,
-                    evidence="manifest",
-                    verified_generation=(key == "seedance-2-0-mini"),
-                ),
+                capabilities=caps,
             )
         )
     return result
@@ -118,24 +138,21 @@ def normalize_generation_request(payload, settings):
     p = deepcopy(payload)
     for field in ("duration", "seconds", "n", "num_outputs", "seed"):
         if p.get(field) is not None:
-            try:
-                number = float(p[field])
-                if (
-                    not math.isfinite(number)
-                    or isinstance(p[field], bool)
-                    or number != int(number)
-                ):
-                    raise ValueError()
-            except (TypeError, ValueError, OverflowError) as exc:
-                raise ValueError(f"{field} 必须为有限整数") from exc
+            value = p[field]
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value != int(value)
+            ):
+                raise ValueError(f"{field} 必须为有限整数")
+    if "background" in p and not isinstance(p["background"], bool):
+        raise ValueError("background 必须为布尔值")
     alias = str(p.get("model") or "sd-2-0-mini")
     mapping = json.loads(model_map_json(settings.model_map))
     key = mapping.get(alias, alias)
     if key not in MODELS:
         raise ValueError(f"不支持模型 {alias}")
-    spec = MODELS[key]
-    props = spec["properties"]
-    config = spec["reference_config"]
     prompt = str(p.get("prompt") or "")
     media = {"image": [], "video": [], "audio": []}
     for kind, plural in (
@@ -158,27 +175,74 @@ def normalize_generation_request(payload, settings):
                         _source(item.get(typ + "_url") or item.get(typ) or item)
                     )
                     break
-    if not prompt.strip() or len(prompt) > 10000:
-        raise ValueError("提示词须为 1–10000 字符")
+    explicit_frames = bool(p.get("image_url") or p.get("image_tail_url"))
+    if explicit_frames:
+        if media["image"]:
+            raise ValueError(
+                "image_url/image_tail_url 不能与 image_urls/content 图片混用"
+            )
+        if not p.get("image_url"):
+            raise ValueError("尾帧需要同时提供 image_url 首帧")
+        media["image"] = [_source(p["image_url"])]
+        if p.get("image_tail_url"):
+            media["image"].append(_source(p["image_tail_url"]))
+    mode = p.get("generation_mode", "auto")
+    if mode not in ("auto", "reference", "image", "text"):
+        raise ValueError("generation_mode 必须为 auto/reference/image/text")
+    if mode == "auto":
+        mode = (
+            "image"
+            if explicit_frames
+            else "reference"
+            if (media["image"] or media["video"]) and "ref2video" in RECIPES[key]
+            else "image"
+            if media["image"]
+            else "text"
+        )
+    recipe = "ref2video" if mode == "reference" else "multi2video"
+    if recipe not in RECIPES[key]:
+        raise ValueError(f"{key} 的 {mode} 模式尚未从上游配置确认")
+    manifest = RECIPES[key][recipe]
+    props = manifest["schema"]["properties"]
+    rules = media_rules(manifest, recipe)
+    if mode == "reference" and explicit_frames:
+        raise ValueError("reference 模式请使用 image_urls")
+    if mode == "reference" and not (media["image"] or media["video"]):
+        raise ValueError("参考模式至少需要图片或视频")
+    if mode == "image" and not media["image"]:
+        raise ValueError("image 模式需要首帧图片")
+    if mode == "text" and any(media.values()):
+        raise ValueError("text 模式不接受素材")
+    if media["audio"] and not (media["image"] or media["video"]):
+        raise ValueError("音频参考必须同时提供图片或视频")
     if media["video"] and not settings.allow_video_reference_inputs:
         raise ValueError("视频参考已被设置禁用")
     for kind, items in media.items():
-        maximum = config["upload"][kind]["maxNum"]
+        maximum = rules["upload"][kind]["maxNum"]
         if len(items) > maximum:
-            if settings.excess_media_policy == "ignore":
+            if (
+                settings.excess_media_policy == "ignore"
+                and mode == "reference"
+                and maximum > 0
+            ):
                 del items[maximum:]
             else:
-                raise ValueError(f"{key} 最多支持 {maximum} 个 {kind} 素材")
+                raise ValueError(
+                    f"{key} 的 {mode} 模式最多支持 {maximum} 个 {kind} 素材"
+                )
         for index, item in enumerate(items, 1):
             if not item["value"].startswith(("http://", "https://", "data:")):
                 raise ValueError("素材仅支持 HTTP(S) / data URL")
             item["label"] = f"{kind}_{index}"
-    if sum(map(len, media.values())) > config["maxItems"]:
+    if sum(map(len, media.values())) > rules["maxItems"]:
         raise ValueError("超过总素材数量上限")
-    if media["audio"] and not (media["image"] or media["video"]):
-        raise ValueError("音频参考必须同时提供图片或视频")
+    caps = recipe_capabilities(manifest, recipe)
     resolution = RESOLUTION_ALIASES.get(
-        str(p.get("resolution") or ALIASED_RESOLUTIONS.get(alias, "720p")).lower(), ""
+        str(
+            p.get("resolution")
+            or ALIASED_RESOLUTIONS.get(alias, caps["default_resolution"])
+        ).lower(),
+        "",
     )
     fixed = (
         ALIASED_RESOLUTIONS.get(alias)
@@ -187,50 +251,31 @@ def normalize_generation_request(payload, settings):
     )
     if fixed and resolution != fixed:
         raise ValueError("模型名中的分辨率与 resolution 冲突")
-    if resolution not in enum_values(props["resolution"]):
-        raise ValueError(f"{key} 不支持分辨率 {resolution}")
     ratio = str(p.get("aspect_ratio") or p.get("ratio") or "16:9")
-    if ratio == "auto":
-        ratio = "adaptive"
-    if ratio not in enum_values(props["aspectRatio"]):
-        raise ValueError(f"{key} 不支持画幅 {ratio}")
-    duration = p.get("duration", p.get("seconds", 5))
-    if isinstance(duration, bool) or float(duration) != int(duration):
-        raise ValueError("duration 必须为整数秒")
-    duration = int(duration)
-    if not props["duration"]["minimum"] <= duration <= props["duration"]["maximum"]:
-        raise ValueError("视频时长超出模型范围")
-    n = p.get("n", p.get("num_outputs", 1))
-    if isinstance(n, bool) or int(n) != float(n) or not 1 <= int(n) <= 4:
-        raise ValueError("n 必须为 1–4")
-    for boolean in ("background", "generate_audio", "published", "protection_mode"):
-        if boolean in p and not isinstance(p[boolean], bool):
-            raise ValueError(f"{boolean} 必须为布尔值")
-    if p.get("seed") is not None and (
-        isinstance(p["seed"], bool)
-        or int(p["seed"]) != float(p["seed"])
-        or not 0 <= int(p["seed"]) <= 2147483647
-    ):
-        raise ValueError("seed 超出范围")
+    ratios = enum_values(props["aspectRatio"])
+    if ratio not in ratios and ratio in ("auto", "adaptive"):
+        ratio = "auto" if "auto" in ratios else "adaptive"
     p.update(
         kind="video",
         model=alias,
         upstream_model=key,
+        generation_mode=mode,
         prompt=normalize_prompt(
             prompt, media, settings.prompt_media_reference_cleanup_enabled
-        ),
+        )
+        if mode == "reference"
+        else prompt,
         original_prompt=prompt,
-        duration=duration,
+        duration=int(p.get("duration", p.get("seconds", 5))),
         resolution=resolution,
         aspect_ratio=ratio,
-        n=int(n),
+        n=int(p.get("n", p.get("num_outputs", 1))),
         _images=media["image"],
         _videos=media["video"],
         _audio=media["audio"],
+        _recipe=recipe,
     )
-    p["_recipe"] = "ref2video" if media["image"] or media["video"] else "multi2video"
-    if p["_recipe"] == "multi2video" and key == "seedance-2-0-mini":
-        raise ValueError("Mini 的文生视频未在上游模型列表中确认，请提供图片或视频参考")
+    validate_parameters(p, manifest)
     return p
 
 

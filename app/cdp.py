@@ -9,15 +9,21 @@ def read_session(port: int) -> dict:
     if not 1024 <= int(port) <= 65535:
         raise ValueError("无效 CDP 端口")
     opener = build_opener(ProxyHandler({}))
-    with opener.open(
-        f"http://127.0.0.1:{int(port)}/json/version", timeout=5
-    ) as response:
-        info = json.load(response)
+    for host in ("127.0.0.1", "[::1]"):
+        try:
+            with opener.open(
+                f"http://{host}:{int(port)}/json/version", timeout=5
+            ) as response:
+                info = json.load(response)
+            break
+        except OSError:
+            if host == "[::1]":
+                raise
     ws = websocket.create_connection(
         info["webSocketDebuggerUrl"],
         timeout=10,
         suppress_origin=True,
-        http_no_proxy=["127.0.0.1", "localhost"],
+        http_no_proxy=["127.0.0.1", "localhost", "::1", "[::1]"],
     )
     try:
         ws.send(json.dumps({"id": 1, "method": "Storage.getCookies"}))

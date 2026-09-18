@@ -405,12 +405,16 @@ def get_video(task_id: str) -> dict[str, Any]:
 
 
 @app.get("/v1/videos/{task_id}/content", dependencies=[Depends(_api_token)])
-def video_content(task_id: str) -> Response:
-    task = _task_or_404(task_id)
-    urls = task.get("result_urls") or []
-    if task.get("status") != "succeeded" or not urls:
-        raise HTTPException(status_code=409, detail="video is not ready")
-    return RedirectResponse(str(urls[0]), status_code=307)
+@app.get("/api/tasks/{task_id}/download", dependencies=[Depends(_admin_token)])
+def video_content(
+    task_id: str, variant: str = "best", index: int = 0, refresh: bool = False
+) -> Response:
+    try:
+        return RedirectResponse(
+            service.download_url(task_id, variant, index, refresh), status_code=307
+        )
+    except Exception as exc:
+        raise _detail(exc) from exc
 
 
 @app.post("/v1/responses", dependencies=[Depends(_api_token)])

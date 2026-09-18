@@ -78,7 +78,7 @@ Authorization: Bearer <POL_API_KEY>
 
 提示词 `视频1|video2|v3|视4|图片1|图1|img2|Image3|Audio1|音频2` 按各媒体列表的一基编号归一化为 Pollo `[@name]`。既有 `[@name]` 支持传入具名素材，例如 `{"url":"...","name":"storyboard"}`；默认拒绝不存在或越界的引用。
 
-无后缀模型默认 **720p**；显式分辨率后缀不允许与请求 resolution 冲突。上游报价受参考视频时长、模型、分辨率和活动影响，不采用固定价格表。控制台“消耗参考”展示实际任务样本，不能替代实时询价。
+Seedance 无后缀模型默认 **720p**；显式分辨率后缀不允许与请求 resolution 冲突。上游报价受参考视频时长、模型、分辨率和活动影响，不采用固定价格表。控制台“消耗参考”展示实际任务样本，不能替代实时询价。
 
 | 外部名称 | 上游模型 | 默认分辨率 |
 |---|---|---|
@@ -92,11 +92,11 @@ Authorization: Bearer <POL_API_KEY>
 | `sd-2-5-480p` | `seedance-2-5` | 480p |
 | `sd-2-5-1080p` | `seedance-2-5` | 1080p |
 
-也支持上述四种上游 modelKey 直接调用。2.0 系列支持 9 图/3 音频/3 视频、4–15 秒；2.5 支持 30 图/10 音频/10 视频、4–30 秒。素材大小、总时长及其他约束在提交前用实时 manifest 再校验。无视觉素材时标准/Fast/2.5 走 `multi2video`；Mini 目前要求至少一个图片或视频参考，因为捕获的文生视频模型列表不含 Mini。
+也支持上述四种 Seedance 上游 modelKey 直接调用，以及 Pollo 2/2.5/3、Wan 3/Prime、MiniMax H3/H3 Max/Hailuo 03/H3 Fast 的已确认模式；具体名称和能力见 `/v1/models`。2.0 系列支持 9 图/3 音频/3 视频、4–15 秒；2.5 支持 30 图/10 音频/10 视频、4–30 秒。素材大小、总时长及其他约束在提交前用实时 manifest 再校验。无视觉素材时标准/Fast/2.5 走 `multi2video`；Mini 目前要求至少一个图片或视频参考，因为捕获的文生视频模型列表不含 Mini。
 
 `background=false` 同步等待，超过同步时限仍返回可继续查询的任务 ID。成功时从 `data[].url` 获取结果，`metadata` 使用上游实际尺寸与时长。Responses 接受字符串 input 或消息内容列表；兼容返回形状不代表实现了完整 OpenAI Responses API。
 
-上游实测样本为 Mini 480p、4 秒、4 图/2 音频/2 视频；其他能力来自已捕获的服务端 manifest，仍由上游当前账户权益和实时规则决定。`published=true` 表示允许上游公开作品，`protection_mode` 与会员权益有关，请按需要设置。
+上游实测包括 Mini 480p 多素材、2.5 480p 多素材、标准 480p 首帧；其他能力来自服务端 manifest，仍由上游当前账户权益和实时规则决定。`published=true` 表示允许上游公开作品，`protection_mode` 与会员权益有关，请按需要设置。
 
 ## 验证
 
@@ -110,3 +110,15 @@ node --check app/static/app.js
 原始抓包保存在工作区忽略目录；脱敏研究资料见 `docs/research/protocol-research.md`。公共代码不包含账户凭据或真实媒体地址。
 
 当前测试与实际上游验证范围见 [实现验证记录](docs/implementation-verification.md)。
+
+## 生成模式与原始下载
+
+`generation_mode` 支持 `auto`（默认）、`reference`、`image`、`text`。`image_urls/video_urls/audio_urls` 默认作为多素材参考，按上游 refsV2 归一化提示词。首尾帧使用 `image_url` / `image_tail_url`，走 `multi2video` 的 `image/imageTail` 字段；提示词保持普通文本。尾帧必须同时提供首帧，不能混用参考图片数组。不同模型可用模式见 `capabilities.modes`。
+
+按模型校验 `mode`、`web_search`、`generate_audio`、`seed` 等可选字段。Pollo 3 的 1080p/4K 需要 `mode=pro`；Pollo 2.5 的时长是离散值且 15 秒要求音频开启；H3 系列使用 768p/2K 等自身规格。报价与提交使用相同素材、元数据和参数。
+
+成功结果优先级：官方 `videoUrlNoWatermark` → 原始 `mediaUrl` → 播放 `videoUrl`。`data[]` 同时返回 `preview_url`、`original_url`、`no_watermark_url`、`watermark_verified` 和 `source`。只有上游明确提供无水印地址时才标记验证成功；下载权限失败不会重发生成任务或改变已成功的生成状态。
+
+`GET /v1/videos/{id}/content?variant=best&index=0` 跳转到首个优质结果；`variant` 还支持 `original`、`no_watermark`、`preview`。无水印版本不可用返回 403，不会用预览冒充；`refresh=true` 使用原任务 ID 更新过期链接。控制台原始视频下载使用同样逻辑。
+
+详细协议与画质证据见 [第二轮记录](docs/research/round2-models-downloads.md)。外部终态错误包含 `error.outcome`：`rejected`/`failed` 为已知拒绝/失败，`unknown` 表示可能已提交，不应自动换渠道再次生成。

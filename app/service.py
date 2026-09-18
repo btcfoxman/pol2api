@@ -483,6 +483,14 @@ class PolService:
                         if raw == "succeed" and not urls:
                             self._stop.wait(self.settings.poll_interval_seconds)
                             continue
+                        if raw == "succeed":
+                            try:
+                                audit["downloads"] = client.downloads(detail)
+                                urls = [
+                                    row["url"] for row in audit["downloads"]
+                                ] or urls
+                            except Exception:
+                                audit["download_warning"] = "DOWNLOAD_LOOKUP_FAILED"
                         charged = (detail.get("generateRecord") or {}).get(
                             "creditDecimal"
                         )
@@ -623,7 +631,8 @@ class PolService:
             "model": task["model"],
             "status": task["status"],
             "progress": task["progress"],
-            "data": [{"url": url} for url in task["result_urls"]],
+            "data": (task.get("upstream_response") or {}).get("downloads")
+            or [{"url": url} for url in task["result_urls"]],
             "usage": {
                 "estimated_credits": task["estimated_cost"],
                 "actual_credits": task["actual_cost"],
@@ -633,11 +642,77 @@ class PolService:
             result["error"] = {
                 "code": task["error_code"],
                 "message": task["error_message"],
+                "outcome": "failed"
+                if task["error_code"] == "GENERATION_FAILED"
+                else "unknown"
+                if task.get("generation_id")
+                or task["error_code"] == "SUBMISSION_UNKNOWN"
+                else "rejected",
             }
         metadata = (task.get("raw_status") or {}).get("videoMeta")
         if metadata:
             result["metadata"] = metadata
         return result
+
+    def refresh_downloads(self, task_id):
+        task = self.db.get_task(task_id)
+        if not task:
+            raise KeyError("task not found")
+        if task["status"] != "succeeded":
+            raise UpstreamError("video is not ready", "NOT_READY", 409)
+        account = self.db.get_account(task["account_id"], include_secrets=True)
+        if not account or not task.get("generation_id"):
+            raise ValueError("任务缺少上游账户或记录 ID")
+        client = self.client_factory(account, self.settings)
+        try:
+            detail = client.detail(task["generation_id"])
+            downloads = client.downloads(detail)
+            if not downloads:
+                raise UpstreamError("上游未返回下载地址", "DOWNLOAD_UNAVAILABLE")
+            audit = {
+                **task.get("upstream_response", {}),
+                "detail": detail,
+                "downloads": downloads,
+            }
+            self.db.update_task(
+                task_id,
+                upstream_response=audit,
+                raw_status=detail,
+                result_urls=[row["url"] for row in downloads],
+            )
+            return self.db.get_task(task_id)
+        finally:
+            client.close()
+
+    def download_url(self, task_id, variant="best", index=0, refresh=False):
+        task = self.db.get_task(task_id)
+        if not task:
+            raise KeyError("task not found")
+        if variant not in ("best", "original", "no_watermark", "preview") or index < 0:
+            raise ValueError("无效下载选项")
+        if task["status"] != "succeeded":
+            raise UpstreamError("video is not ready", "NOT_READY", 409)
+        rows = (task.get("upstream_response") or {}).get("downloads") or []
+        if refresh or (not rows and variant != "best"):
+            task = self.refresh_downloads(task_id)
+            rows = task["upstream_response"]["downloads"]
+        rows = rows or [{"url": url} for url in task.get("result_urls", [])]
+        if index >= len(rows):
+            raise KeyError("video not found")
+        field = {
+            "best": "url",
+            "original": "original_url",
+            "no_watermark": "no_watermark_url",
+            "preview": "preview_url",
+        }[variant]
+        url = rows[index].get(field)
+        if not url:
+            raise UpstreamError(
+                "此下载版本不可用",
+                "DOWNLOAD_UNAVAILABLE",
+                403 if variant == "no_watermark" else 404,
+            )
+        return url
 
     def task_media_source(self, task_id, index):
         task = self.db.get_task(task_id)

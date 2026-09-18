@@ -79,7 +79,12 @@ class GenerationTaskCreate(BaseModel):
     image_urls: list[Any] = Field(default_factory=list)
     video_urls: list[Any] = Field(default_factory=list)
     audio_urls: list[Any] = Field(default_factory=list)
-    duration: int = Field(default=5, ge=4, le=30)
+    generation_mode: Literal["auto", "reference", "image", "text"] = "auto"
+    image_url: str | None = None
+    image_tail_url: str | None = None
+    mode: str | None = None
+    web_search: bool | None = None
+    duration: int = Field(default=5, ge=2, le=30)
     resolution: str | None = None
     aspect_ratio: str = "16:9"
     n: int = Field(default=1, ge=1, le=4)

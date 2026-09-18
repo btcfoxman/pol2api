@@ -10,6 +10,9 @@ class FakeClient:
     balance = 14
     ambiguous = False
 
+    def downloads(self, detail):
+        return [{"url": "https://example.com/result.mp4"}]
+
     def __init__(self, account, settings):
         self.account = account
 

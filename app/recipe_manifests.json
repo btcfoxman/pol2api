@@ -1,0 +1,2658 @@
+{
+  "captured_on": "2026-09-18",
+  "entries": [
+    {
+      "model": "minimax-h3",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpg",
+                      ".jpeg",
+                      ".png",
+                      ".webp",
+                      ".heic",
+                      ".heif"
+                    ],
+                    "minSize": "256*256",
+                    "maxSize": "5760*5760",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  }
+                }
+              }
+            },
+            "imageTail": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpg",
+                      ".jpeg",
+                      ".png",
+                      ".webp",
+                      ".heic",
+                      ".heif"
+                    ],
+                    "minSize": "256*256",
+                    "maxSize": "5760*5760",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 7000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "default": "auto"
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 15,
+              "default": 5
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "768p",
+                "2K"
+              ],
+              "default": "480p"
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        },
+        "capabilities": [
+          "image2video",
+          "text2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "has(values.image) && dyn(values.image) != null && size(values.image) > 0",
+            "action": "form.setHidden('aspectRatio', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setHidden('imageTail', true)"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 4295
+      }
+    },
+    {
+      "model": "minimax-h3-fast",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 15,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 9,
+                    "supportedTypes": [
+                      ".jpg",
+                      ".jpeg",
+                      ".png",
+                      ".webp",
+                      ".heic",
+                      ".heif"
+                    ],
+                    "minSize": "256*256",
+                    "maxSize": "5760*5760",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  },
+                  "video": {
+                    "maxNum": 3,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov"
+                    ],
+                    "minSize": "256*256",
+                    "maxSize": "5760*5760",
+                    "maxFilesize": 52428800,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15,
+                    "minFps": 23.976,
+                    "maxFps": 60
+                  },
+                  "audio": {
+                    "maxNum": 3,
+                    "maxFilesize": 15728640,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 7000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 5,
+              "maximum": 15,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "default": "16:9"
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-01",
+        "line": 21913
+      }
+    },
+    {
+      "model": "minimax-h3-max",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 10485760
+                  }
+                }
+              }
+            },
+            "imageTail": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 10485760
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 7000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "default": "auto"
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 5,
+              "maximum": 15,
+              "default": 5
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "768p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        },
+        "capabilities": [
+          "image2video",
+          "text2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "has(values.image) && dyn(values.image) != null && size(values.image) > 0",
+            "action": "form.setHidden('aspectRatio', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setHidden('imageTail', true)"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 4327
+      }
+    },
+    {
+      "model": "minimax-h3-max",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 12,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 9,
+                    "supportedTypes": [
+                      ".jpg",
+                      ".jpeg",
+                      ".png",
+                      ".webp",
+                      ".heic",
+                      ".heif"
+                    ],
+                    "minSize": "256*256",
+                    "maxSize": "5760*5760",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  },
+                  "video": {
+                    "maxNum": 3,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov"
+                    ],
+                    "minSize": "256*256",
+                    "maxSize": "5760*5760",
+                    "maxFilesize": 52428800,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15,
+                    "minFps": 23.976,
+                    "maxFps": 60
+                  },
+                  "audio": {
+                    "maxNum": 3,
+                    "maxFilesize": 15728640,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 7000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 5,
+              "maximum": 15,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "768p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "default": "auto"
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 2763
+      }
+    },
+    {
+      "model": "minimax-hailuo-03",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 15,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 9,
+                    "supportedTypes": [
+                      ".jpg",
+                      ".jpeg",
+                      ".png",
+                      ".webp",
+                      ".heic",
+                      ".heif"
+                    ],
+                    "minSize": "256*256",
+                    "maxSize": "5760*5760",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  },
+                  "video": {
+                    "maxNum": 3,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov"
+                    ],
+                    "minSize": "256*256",
+                    "maxSize": "5760*5760",
+                    "maxFilesize": 52428800,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15,
+                    "minFps": 23.976,
+                    "maxFps": 60
+                  },
+                  "audio": {
+                    "maxNum": 3,
+                    "maxFilesize": 15728640,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 7000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 15,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "768p",
+                "2K"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "default": "auto"
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 2744
+      }
+    },
+    {
+      "model": "pollo-v2",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 10485760
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4",
+                "1:1"
+              ],
+              "default": "16:9"
+            },
+            "duration": {
+              "type": "integer",
+              "enum": [
+                5,
+                10
+              ],
+              "default": 5
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        },
+        "capabilities": [
+          "image2video",
+          "text2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "has(values.image) && dyn(values.image) != null && size(values.image) > 0",
+            "action": "form.setHidden('aspectRatio', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setRequired('prompt', true)"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 4204
+      }
+    },
+    {
+      "model": "pollo-v2-5",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 10485760
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "9:16"
+              ],
+              "default": "16:9"
+            },
+            "duration": {
+              "type": "integer",
+              "enum": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                15
+              ],
+              "default": 5
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "basic",
+                "pro"
+              ],
+              "default": "basic"
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "720p",
+                "1080p"
+              ],
+              "default": "720p"
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        },
+        "capabilities": [
+          "image2video",
+          "text2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "has(values.image) && dyn(values.image) != null && size(values.image) > 0",
+            "action": "form.setHidden('aspectRatio', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setRequired('prompt', true)"
+          },
+          {
+            "when": "(values.duration == 15 && values.generateAudio != true) && (!(has(values.image) && dyn(values.image) != null && size(values.image) > 0))",
+            "action": "form.setValues({'generateAudio': true})"
+          },
+          {
+            "when": "(values.duration == 15 && values.generateAudio != true) && (has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setValues({'generateAudio': true})"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 4072
+      }
+    },
+    {
+      "model": "pollo-v3-0",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 13,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 9,
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "maxFilesize": 31457280
+                  },
+                  "video": {
+                    "maxNum": 3,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov",
+                      ".avi"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minTotalPixels": 409600,
+                    "maxTotalPixels": 2086876,
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 52428800,
+                    "minDuration": 2,
+                    "maxDuration": 15.2,
+                    "maxTotalDuration": 15.2
+                  },
+                  "audio": {
+                    "maxNum": 3,
+                    "maxFilesize": 15728640,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 15,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p",
+                "4K"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "default": "16:9"
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "basic",
+                "pro"
+              ],
+              "default": "basic"
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          },
+          {
+            "when": "values.mode == 'basic'",
+            "action": "form.setProps('resolution', {'disabledOptions': ['1080p', '4K']})"
+          },
+          {
+            "when": "values.mode == 'basic' && (values.resolution == '1080p' || values.resolution == '4K')",
+            "action": "form.setValues({'resolution': '720p'})"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 2698
+      }
+    },
+    {
+      "model": "seedance-2-0",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  }
+                }
+              }
+            },
+            "imageTail": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "default": "16:9"
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 15,
+              "default": 5
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p",
+                "4K"
+              ],
+              "default": "480p"
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "webSearch": {
+              "type": "boolean",
+              "default": true
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        },
+        "capabilities": [
+          "image2video",
+          "text2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setHidden('imageTail', true)"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 4249
+      }
+    },
+    {
+      "model": "seedance-2-0",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 15,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 9,
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "maxFilesize": 31457280
+                  },
+                  "video": {
+                    "maxNum": 3,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov",
+                      ".avi"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minTotalPixels": 409600,
+                    "maxTotalPixels": 2086876,
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 52428800,
+                    "minDuration": 2,
+                    "maxDuration": 15.2,
+                    "maxTotalDuration": 15.2,
+                    "minFps": 24,
+                    "maxFps": 60
+                  },
+                  "audio": {
+                    "maxNum": 3,
+                    "maxFilesize": 15728640,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 15,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p",
+                "4K"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "default": "16:9"
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 2777
+      }
+    },
+    {
+      "model": "seedance-2-0-fast",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 15,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 9,
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "maxFilesize": 31457280
+                  },
+                  "video": {
+                    "maxNum": 3,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov",
+                      ".avi"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minTotalPixels": 409600,
+                    "maxTotalPixels": 2086876,
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 52428800,
+                    "minDuration": 2,
+                    "maxDuration": 15.2,
+                    "maxTotalDuration": 15.2
+                  },
+                  "audio": {
+                    "maxNum": 3,
+                    "maxFilesize": 15728640,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 15,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "default": "16:9"
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-01",
+        "line": 21915
+      }
+    },
+    {
+      "model": "seedance-2-0-mini",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 15,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 9,
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "maxFilesize": 31457280
+                  },
+                  "video": {
+                    "maxNum": 3,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov",
+                      ".avi"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minTotalPixels": 409600,
+                    "maxTotalPixels": 2086876,
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 52428800,
+                    "minDuration": 2,
+                    "maxDuration": 15.2,
+                    "maxTotalDuration": 15.2,
+                    "minFps": 24,
+                    "maxFps": 60
+                  },
+                  "audio": {
+                    "maxNum": 3,
+                    "maxFilesize": 15728640,
+                    "minDuration": 2,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 15,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "default": "16:9"
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 2784
+      }
+    },
+    {
+      "model": "seedance-2-5",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 10485760
+                  }
+                }
+              }
+            },
+            "imageTail": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 10485760
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9",
+                "adaptive"
+              ],
+              "default": "adaptive"
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 30,
+              "default": 5
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "webSearch": {
+              "type": "boolean",
+              "default": true
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        },
+        "capabilities": [
+          "image2video",
+          "text2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "has(values.image) && dyn(values.image) != null && size(values.image) > 0",
+            "action": "form.setHidden('aspectRatio', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setHidden('imageTail', true)"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 4204
+      }
+    },
+    {
+      "model": "seedance-2-5",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 50,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 30,
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp",
+                      ".gif"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  },
+                  "video": {
+                    "maxNum": 10,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minTotalPixels": 409600,
+                    "maxTotalPixels": 2086876,
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 209715200,
+                    "minDuration": 2,
+                    "maxDuration": 30.2,
+                    "maxTotalDuration": 30.2,
+                    "minFps": 24,
+                    "maxFps": 60
+                  },
+                  "audio": {
+                    "maxNum": 10,
+                    "maxFilesize": 15728640,
+                    "maxTotalFilesize": 67108864,
+                    "minDuration": 2,
+                    "maxDuration": 30,
+                    "maxTotalDuration": 30
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 30,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "adaptive",
+                "21:9",
+                "16:9",
+                "9:16",
+                "1:1",
+                "3:4",
+                "4:3"
+              ],
+              "default": "adaptive"
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 2489
+      }
+    },
+    {
+      "model": "wan-v3-0",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "240*240",
+                    "maxSize": "8000*8000",
+                    "minRatio": 0.125,
+                    "maxRatio": 8,
+                    "maxFilesize": 20971520
+                  }
+                }
+              }
+            },
+            "imageTail": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "240*240",
+                    "maxSize": "8000*8000",
+                    "minRatio": 0.125,
+                    "maxRatio": 8,
+                    "maxFilesize": 20971520
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "adaptive",
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4",
+                "1:1"
+              ],
+              "default": "adaptive"
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 30,
+              "default": 5
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        },
+        "capabilities": [
+          "image2video",
+          "text2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "has(values.image) && dyn(values.image) != null && size(values.image) > 0",
+            "action": "form.setHidden('aspectRatio', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setHidden('imageTail', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setRequired('prompt', true)"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 4249
+      }
+    },
+    {
+      "model": "wan-v3-0",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 22,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 10,
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "240*240",
+                    "maxSize": "8000*8000",
+                    "minRatio": 0.125,
+                    "maxRatio": 8,
+                    "maxFilesize": 20971520
+                  },
+                  "video": {
+                    "maxNum": 5,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov"
+                    ],
+                    "minSize": "240*240",
+                    "maxSize": "4096*4096",
+                    "minRatio": 0.125,
+                    "maxRatio": 8,
+                    "maxFilesize": 104857600,
+                    "minDuration": 1,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  },
+                  "audio": {
+                    "maxNum": 5,
+                    "maxFilesize": 15728640,
+                    "minDuration": 1,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  },
+                  "file": {
+                    "maxNum": 1,
+                    "supportedTypes": [
+                      ".docx",
+                      ".doc",
+                      ".xlsx",
+                      ".xls",
+                      ".pptx",
+                      ".ppt",
+                      ".pdf",
+                      ".txt",
+                      ".key",
+                      ".pages",
+                      ".numbers",
+                      ".md"
+                    ],
+                    "maxFilesize": 104857600,
+                    "hardBlockFileSize": true,
+                    "maxPages": 50
+                  },
+                  "link": {
+                    "maxNum": 1
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 30,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "adaptive",
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4",
+                "1:1"
+              ],
+              "default": "adaptive"
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video' || r.type == 'file' || r.type == 'link')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 2698
+      }
+    },
+    {
+      "model": "wan-v3-0-prime",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "240*240",
+                    "maxSize": "8000*8000",
+                    "minRatio": 0.125,
+                    "maxRatio": 8,
+                    "maxFilesize": 20971520
+                  }
+                }
+              }
+            },
+            "imageTail": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "240*240",
+                    "maxSize": "8000*8000",
+                    "minRatio": 0.125,
+                    "maxRatio": 8,
+                    "maxFilesize": 20971520
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "adaptive",
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4",
+                "1:1"
+              ],
+              "default": "adaptive"
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 30,
+              "default": 5
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        },
+        "capabilities": [
+          "image2video",
+          "text2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "has(values.image) && dyn(values.image) != null && size(values.image) > 0",
+            "action": "form.setHidden('aspectRatio', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setHidden('imageTail', true)"
+          },
+          {
+            "when": "!(has(values.image) && dyn(values.image) != null && size(values.image) > 0)",
+            "action": "form.setRequired('prompt', true)"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 4295
+      }
+    },
+    {
+      "model": "wan-v3-0-prime",
+      "recipe": "ref2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v3-0"
+            },
+            "refs": {
+              "type": "array",
+              "x-ui-config": {
+                "maxItems": 22,
+                "refsFormat": "ref2videoV2",
+                "upload": {
+                  "image": {
+                    "maxNum": 10,
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "240*240",
+                    "maxSize": "8000*8000",
+                    "minRatio": 0.125,
+                    "maxRatio": 8,
+                    "maxFilesize": 20971520
+                  },
+                  "video": {
+                    "maxNum": 5,
+                    "supportedTypes": [
+                      ".mp4",
+                      ".mov"
+                    ],
+                    "minSize": "240*240",
+                    "maxSize": "4096*4096",
+                    "minRatio": 0.125,
+                    "maxRatio": 8,
+                    "maxFilesize": 104857600,
+                    "minDuration": 1,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  },
+                  "audio": {
+                    "maxNum": 5,
+                    "maxFilesize": 15728640,
+                    "minDuration": 1,
+                    "maxDuration": 15,
+                    "maxTotalDuration": 15
+                  },
+                  "file": {
+                    "maxNum": 1,
+                    "supportedTypes": [
+                      ".docx",
+                      ".doc",
+                      ".xlsx",
+                      ".xls",
+                      ".pptx",
+                      ".ppt",
+                      ".pdf",
+                      ".txt",
+                      ".key",
+                      ".pages",
+                      ".numbers",
+                      ".md"
+                    ],
+                    "maxFilesize": 104857600,
+                    "hardBlockFileSize": true,
+                    "maxPages": 50
+                  },
+                  "link": {
+                    "maxNum": 1
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 30,
+              "default": 5
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "default": "480p"
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "adaptive",
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4",
+                "1:1"
+              ],
+              "default": "adaptive"
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "protectionMode": true
+        },
+        "capabilities": [
+          "ref2video"
+        ],
+        "effects": [
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('published', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "user.isPaid == false",
+            "action": "form.setProps('protectionMode', {'showPremium': true, 'ensureProFeature': true})"
+          },
+          {
+            "when": "values.refs.size() > 0 && !values.refs.exists(r, !('type' in r) || r.type == 'image' || r.type == 'video' || r.type == 'file' || r.type == 'link')",
+            "action": "form.setInvalid('refs', 'refsNeedVisual')"
+          }
+        ]
+      },
+      "evidence": {
+        "capture": "pol-02",
+        "line": 2744
+      }
+    },
+    {
+      "model": "seedance-2-0-fast",
+      "recipe": "multi2video",
+      "manifest": {
+        "schema": {
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "pollo-v2"
+            },
+            "image": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  }
+                }
+              }
+            },
+            "imageTail": {
+              "type": "string",
+              "x-ui-config": {
+                "upload": {
+                  "image": {
+                    "supportedTypes": [
+                      ".jpeg",
+                      ".jpg",
+                      ".png",
+                      ".webp",
+                      ".bmp"
+                    ],
+                    "minSize": "300*300",
+                    "maxSize": "6000*6000",
+                    "minRatio": 0.4,
+                    "maxRatio": 2.5,
+                    "maxFilesize": 31457280
+                  }
+                }
+              }
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "aspectRatio": {
+              "type": "string",
+              "enum": [
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "default": "16:9"
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 15,
+              "default": 5
+            },
+            "numOutputs": {
+              "type": "number",
+              "default": 1,
+              "maximum": 4,
+              "minimum": 1
+            },
+            "generateAudio": {
+              "type": "boolean",
+              "default": true
+            },
+            "resolution": {
+              "type": "string",
+              "enum": [
+                "480p",
+                "720p"
+              ],
+              "default": "480p"
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "webSearch": {
+              "type": "boolean",
+              "default": true
+            },
+            "published": {
+              "type": "boolean",
+              "default": false
+            },
+            "protectionMode": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "initialValues": {
+          "published": false,
+          "numOutputs": 1,
+          "protectionMode": false
+        }
+      },
+      "evidence": {
+        "source": "authorized_read_only_manifest",
+        "date": "2026-09-18"
+      }
+    }
+  ]
+}

@@ -50,7 +50,7 @@ function taskSpec(task) { const request = task.request || {}; return [task.model
 function renderTasks() {
   const items = state.tasks.slice(0, 20); $("#tasksBody").innerHTML = items.map((task) => {
     const media = mediaFromTask(task); const inputs = media.filter((item) => !item.result); const results = media.filter((item) => item.result);
-    const result = task.status === "failed" || task.status === "expired" ? `<span class="error-stack"><span class="error-public">响应：${escapeHtml(failureMessage(task))}</span><span class="error-upstream" title="${escapeHtml(task.error_message)}">上游：${escapeHtml(task.error_message || "未知错误")}</span></span>` : `<span class="result-links">${results.map((item) => `<a href="${escapeHtml(item.url)}" target="_blank">视${results.length > 1 ? results.indexOf(item) + 1 : ""}</a>`).join("")}</span>`;
+    const result = task.status === "failed" || task.status === "expired" ? `<span class="error-stack"><span class="error-public">响应：${escapeHtml(failureMessage(task))}</span><span class="error-upstream" title="${escapeHtml(task.error_message)}">上游：${escapeHtml(task.error_message || "未知错误")}</span></span>` : `<span class="result-links">${results.map((item) => `<a href="/api/tasks/${encodeURIComponent(task.id)}/download?index=${results.indexOf(item)}" target="_blank">原始视频${results.length > 1 ? results.indexOf(item) + 1 : ""}</a>`).join("")}</span>`;
     return `<tr><td><button class="cell-title link-button mono" data-action="detail" data-id="${escapeHtml(task.id)}">${escapeHtml(task.id.slice(0, 20))}</button><span class="cell-sub mono">${escapeHtml((task.channel || "待分配").toUpperCase())}${task.account_id ? ` · #${task.account_id} · ${escapeHtml(task.account_name || "")}` : ""}</span></td>
       <td class="prompt-cell"><span class="cell-title" title="${escapeHtml(task.prompt)}">${escapeHtml(task.prompt || "-")}</span><span class="task-meta-line"><span class="task-spec">${escapeHtml(taskSpec(task))}</span>${inputs.length ? `<span class="media-text">${inputs.map((item, index) => `<button data-action="media" data-id="${escapeHtml(task.id)}" data-media-index="${index}">${{ image: "图", video: "视", audio: "音" }[item.kind]}${item.label}</button>`).join(" ")}</span>` : ""}</span></td>
       <td>${badge(task.status)}</td><td><div class="progress-stack"><span class="progress-value"><b class="mono">${task.progress || 0}%</b><span class="progress-track"><i style="width:${Math.min(Number(task.progress || 0), 100)}%"></i></span></span><span class="elapsed">${terminal.has(task.status) ? "耗时" : "已用"} ${elapsed(task)}</span></div></td>
@@ -66,19 +66,21 @@ function defaultPayload() {
   if (limits.images > 0) payload.image_urls = ["https://interactive-examples.mdn.mozilla.net/media/cc0-images/flower.jpg"];
   if (limits.videos > 0) payload.video_urls = [];
   if (limits.audio > 0) payload.audio_urls = [];
-  if (capabilities.generate_audio === false) payload.generate_audio = false;
+  payload.generation_mode = capabilities.default_generation_mode || "auto";
+  if (capabilities.generate_audio) payload.generate_audio = true;
+  if (["1080p", "4K"].includes(payload.resolution) && capabilities.parameters?.mode) payload.mode = "pro";
   return payload;
 }
 function renderModels(resetPayload = true) {
   if (!state.models.some((model) => model.id === state.selectedModel) && state.models[0]) state.selectedModel = state.models[0].id;
   $("#modelTabs").innerHTML = state.models.map((model) => `<button class="${model.id === state.selectedModel ? "active" : ""}" type="button" data-model="${escapeHtml(model.id)}">${escapeHtml(model.meta?.label || model.id)}</button>`).join("");
   const selected = state.models.find((item) => item.id === state.selectedModel); const caps = selected?.capabilities || {}; const limits = caps.media_limits || {};
-  $("#sampleMediaHint span").textContent = `支持 ${limits.images || 0} 图、${limits.videos || 0} 视频、${limits.audio || 0} 音频；${(caps.resolutions || []).join("/")}；素材超限策略由设置控制。`;
+  $("#sampleMediaHint span").textContent = `支持 ${limits.images || 0} 图、${limits.videos || 0} 视频、${limits.audio || 0} 音频；${(caps.resolutions || []).join("/")}；模式 ${(caps.generation_modes || []).join("/")}（generation_mode）；素材超限策略由设置控制。`;
   $("#metricModels").textContent = state.models.length; if (resetPayload) $("#requestJson").value = JSON.stringify(defaultPayload(), null, 2); icons();
 }
 function validateJson() { try { JSON.parse($("#requestJson").value); $("#jsonValidation").textContent = "JSON 有效"; $("#jsonValidation").className = "validation"; return true; } catch (error) { $("#jsonValidation").textContent = error.message; $("#jsonValidation").className = "validation error"; return false; } }
 
-function callerResponse(task) { const value = { id: task.id, object: "video.generation", model: task.model, status: task.status, progress: task.progress, data: (task.result_urls || []).map((url) => ({ url })) }; if (terminal.has(task.status) && task.status !== "succeeded") value.error = { code: task.error_code, message: failureMessage(task) }; return value; }
+function callerResponse(task) { const value = { id: task.id, object: "video.generation", model: task.model, status: task.status, progress: task.progress, data: task.upstream_response?.downloads || (task.result_urls || []).map((url) => ({ url })) }; if (terminal.has(task.status) && task.status !== "succeeded") value.error = { code: task.error_code, message: failureMessage(task) }; return value; }
 function renderAudit() { const values = { caller_request: state.detail?.caller_request, upstream_request: state.detail?.upstream_request, upstream_response: state.detail?.upstream_response, caller_response: state.detail ? callerResponse(state.detail) : {} }; $("#auditCode").textContent = JSON.stringify(values[state.auditKey] || {}, null, 2); }
 function showDetail(task) {
   state.detail = task; $("#retryTaskButton").hidden = !["failed","expired"].includes(task.status) || task.error_code === "SUBMISSION_UNKNOWN"; state.auditKey = "caller_request"; $("#detailId").textContent = task.id; $("#detailTitle").textContent = `${task.model} · 视频`;
