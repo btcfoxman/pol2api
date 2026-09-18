@@ -238,7 +238,11 @@ class PolloClient:
                 message,
                 code,
                 int(details.get("httpStatus") or 422),
-                "upload_complete" if name == "uploadAsset.complete" else "",
+                "upload_complete"
+                if name == "uploadAsset.complete"
+                else "submit"
+                if name == "recipe.submit"
+                else "",
             )
         if "result" not in item or "data" not in item["result"]:
             raise UpstreamError("无效 tRPC 数据", "INVALID_RESPONSE")

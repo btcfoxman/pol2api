@@ -24,6 +24,13 @@ LOGGER = logging.getLogger("pol2api")
 TERMINAL = {"succeeded", "failed", "expired"}
 
 
+def _generation_restricted(error):
+    return getattr(error, "code", "") == "ACCOUNT_RESTRICTED" or (
+        isinstance(error, UpstreamError)
+        and "generation is currently restricted for your account" in str(error).lower()
+    )
+
+
 class PolService:
     runtime_fields = tuple(SettingsPatch.model_fields)
 
@@ -239,6 +246,7 @@ class PolService:
             return client.account_state(), client
 
     def _store_state(self, account_id, state, *, balance=True):
+        current = self.db.get_account(account_id) or {}
         changes = {
             k: state[k]
             for k in ("email", "user_id", "team_id", "cookie_header", "cookie_records")
@@ -250,6 +258,11 @@ class PolService:
             last_checked_at=now_ts(),
             last_error="",
         )
+        # A valid session/balance does not prove generation restrictions were lifted.
+        if current.get("status") == "generation_restricted":
+            changes.update(
+                status="generation_restricted", last_error=current.get("last_error", "")
+            )
         if balance:
             changes.update(
                 last_balance=state["available_balance"],
@@ -440,6 +453,14 @@ class PolService:
                     continue
                 if self._stop.is_set():
                     return
+                fresh = self.db.get_account(account["id"])
+                if fresh and fresh["status"] == "generation_restricted":
+                    raise UpstreamError(
+                        "上游已限制此账号的生成权限",
+                        "ACCOUNT_RESTRICTED",
+                        403,
+                        stage="submit",
+                    )
                 self.db.update_task(task_id, status="submitting", progress=35)
                 generated = client.generate(body)
                 record_id = str(generated["id"])
@@ -600,7 +621,16 @@ class PolService:
                 completed_at=now_ts(),
                 upstream_response=audit,
             )
-            if uncertain and account:
+            if _generation_restricted(exc) and account:
+                self.db.update_account(
+                    account["id"],
+                    {
+                        "enabled": False,
+                        "status": "generation_restricted",
+                        "last_error": str(exc),
+                    },
+                )
+            elif uncertain and account:
                 self.db.update_account(
                     account["id"],
                     {

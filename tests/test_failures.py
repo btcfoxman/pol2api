@@ -77,6 +77,26 @@ def test_structured_camel_case_code_is_not_lost():
     )
 
 
+@pytest.mark.parametrize(
+    "code", ["TOO_MANY_REQUESTS", "ACCOUNT_RESTRICTED", "NO_ACCOUNT", "QUEUE_FULL"]
+)
+def test_restricted_or_unavailable_channel_is_not_generic_generation_failure(code):
+    error = public_failure(
+        {
+            "error_code": code,
+            "upstream_response": {
+                "failure": {
+                    "stage": "submit",
+                    "message": "Generation is currently restricted for your account. Please contact support if you believe this is a mistake.",
+                }
+            },
+        }
+    )
+    assert error["category"] == "UPSTREAM_MAINTENANCE"
+    assert error["message"] == "上游维护中，请稍后再试~"
+    assert error["outcome"] == "rejected" and error["refunded"] is False
+
+
 def test_category_cannot_turn_uncertain_submission_into_safe_rejection():
     result = public_failure(
         task("素材超限，请修改后再试~", error_code="SUBMISSION_UNKNOWN")

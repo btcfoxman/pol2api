@@ -29,3 +29,9 @@ ffprobe 实测像素总数 3,686,400，大于已捕获的 Seedance 2.0 Mini/2.5 
 Seedance 2.0 Fast 参考模式任务与 Wan 3.0 浏览器参考模式任务均返回 `failCode=3000`，说明为 `Sensitive input flagged by the third-party model. Please modify your input. Credits refunded.`。上游未明确区分是哪种输入触发审核，因此归入 `CONTENT_MODERATION_FAILED`，返回“检测到内容有敏感或违规情况，请修改后重试，积分已返还～”，不根据任务含图片就推断为图片或真人问题。
 
 退款证据沿用上述严格单输出核验规则，将这一组完整错误码/消息加入已观察回执；数值退款字段的冲突、未知提交状态或多输出仍不能依据文字推断足额退款。
+
+## 账号生成权限受限
+
+后续连续提交在 `recipe.submit` 返回 `TOO_MANY_REQUESTS`，完整提示为 `Generation is currently restricted for your account. Please contact support if you believe this is a mistake.`。此提示明确限制账号生成，不应仅根据 429 错误码解释为普通速率限制。失败任务未获得上游记录 ID，保留原始拒绝原因，不声明退款。
+
+此情况归为 `UPSTREAM_MAINTENANCE`，返回“上游维护中，请稍后再试~”。自动暂停该账号新任务分配，管理端显示“生成受限”；已经准备素材的任务在提交前再次检查限制状态。已取得上游 ID 的任务仍可查询。刷新余额/有效登录会话不代表生成限制解除，因此不能自动恢复账号生成权限。平台限制本身需由账号所有者联系上游处理，不自动换账号重提受限任务。

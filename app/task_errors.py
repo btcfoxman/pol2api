@@ -151,6 +151,10 @@ def classify_failure(code: str = "", message: str = "", *, stage: str = "") -> s
             "RATE_LIMITED",
             "NETWORK_ERROR",
             "AUTH_REQUIRED",
+            "TOO_MANY_REQUESTS",
+            "ACCOUNT_RESTRICTED",
+            "NO_ACCOUNT",
+            "QUEUE_FULL",
         }
         or re.search(
             r"maintenance|temporarily unavailable|上游维护|upload.{0,40}(?:reject|denied|forbidden|fail)",

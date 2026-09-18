@@ -111,6 +111,62 @@ def test_no_submission_when_quote_exceeds_balance(setup):
     assert db.get_account(a["id"])["active_tasks"] == 0
 
 
+def test_account_generation_restriction_pauses_new_work_and_keeps_balance_evidence(
+    setup, monkeypatch
+):
+    from app.pollo_client import UpstreamError
+
+    db, service, account = setup
+
+    def rejected(*args):
+        FakeClient.submits += 1
+        raise UpstreamError(
+            "Generation is currently restricted for your account. Please contact support if you believe this is a mistake.",
+            "TOO_MANY_REQUESTS",
+            429,
+            stage="submit",
+        )
+
+    monkeypatch.setattr(FakeClient, "generate", rejected)
+    first = service.create_task(request())
+    done = service.wait_task(first["id"], 5)
+    future = service._futures.get(first["id"])
+    if future is not None:
+        future.result(timeout=5)
+    saved = db.get_account(account["id"])
+    assert saved["enabled"] is False and saved["status"] == "generation_restricted"
+    assert saved["reserved_balance"] == 0 and saved["last_balance"] == 14
+    assert (
+        done["generation_id"] == ""
+        and done["error_message"] == "上游维护中，请稍后再试~"
+    )
+    service.check_account(account["id"])
+    assert db.get_account(account["id"])["status"] == "generation_restricted"
+    second = service.create_task(request())
+    assert (
+        service.wait_task(second["id"], 5)["error_message"] == "上游维护中，请稍后再试~"
+    )
+    assert FakeClient.submits == 1
+
+
+def test_already_preparing_task_does_not_submit_after_account_restricted(
+    setup, monkeypatch
+):
+    db, service, account = setup
+    original_prepare = FakeClient.prepare
+
+    def prepare(client, payload):
+        db.update_account(
+            account["id"], {"enabled": False, "status": "generation_restricted"}
+        )
+        return original_prepare(client, payload)
+
+    monkeypatch.setattr(FakeClient, "prepare", prepare)
+    job = service.create_task(request())
+    done = service.wait_task(job["id"], 5)
+    assert done["error_code"] == "ACCOUNT_RESTRICTED" and FakeClient.submits == 0
+
+
 def test_ambiguous_submit_blocks_retry(setup):
     db, s, a = setup
     FakeClient.ambiguous = True
