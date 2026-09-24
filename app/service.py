@@ -686,6 +686,14 @@ class PolService:
         return self.db.get_task(task_id)
 
     def public_task(self, task):
+        actual_credits = task["actual_cost"]
+        if task["status"] == "failed" and actual_credits is not None:
+            receipt = refund_receipt(task)
+            if receipt:
+                actual_credits = min(
+                    max(float(actual_credits), 0),
+                    max(receipt["charged"] - receipt["credits"], 0),
+                )
         result = {
             "id": task["id"],
             "object": "video.generation",
@@ -697,7 +705,7 @@ class PolService:
             or [{"url": url} for url in task["result_urls"]],
             "usage": {
                 "estimated_credits": task["estimated_cost"],
-                "actual_credits": task["actual_cost"],
+                "actual_credits": actual_credits,
             },
         }
         if task["status"] in ("failed", "expired"):

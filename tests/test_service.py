@@ -378,3 +378,41 @@ def test_terminal_refund_keeps_message_and_net_cost_consistent(
         future.result(timeout=5)
     saved = db.get_account(account["id"])
     assert saved["last_balance"] == 14 and saved["reserved_balance"] == 0
+
+
+def test_historical_refunded_task_exposes_net_usage_to_caller(setup):
+    from app.task_errors import SENSITIVE_OUTPUT_REFUND_MESSAGE
+
+    _, service, _ = setup
+    failed = {
+        "status": "failed",
+        "failCode": 3009,
+        "failMsg": SENSITIVE_OUTPUT_REFUND_MESSAGE,
+        "refundCreditDecimal": None,
+    }
+    task = {
+        "id": "old-task",
+        "created_at": 1,
+        "model": "sd-2-0-fast-480p",
+        "status": "failed",
+        "progress": 100,
+        "generation_id": "123",
+        "error_code": "GENERATION_FAILED",
+        "error_message": "生成失败，请重试~",
+        "estimated_cost": 36,
+        "actual_cost": 36,
+        "request": {"n": 1},
+        "result_urls": [],
+        "raw_status": {},
+        "upstream_response": {
+            "detail": {
+                **failed,
+                "generateRecord": {**failed, "id": "123", "creditDecimal": "36"},
+                "generations": [dict(failed)],
+            }
+        },
+    }
+    result = service.public_task(task)
+    assert result["usage"] == {"estimated_credits": 36, "actual_credits": 0}
+    assert result["error"]["message"] == "生成的视频内容违规，请修改描述后重试，积分已返还~"
+    assert task["actual_cost"] == 36
