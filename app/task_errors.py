@@ -47,9 +47,17 @@ SENSITIVE_INPUT_REFUND_MESSAGE = (
     "Sensitive input flagged by the third-party model. "
     "Please modify your input. Credits refunded."
 )
-MODERATION_RECEIPTS = {
+SENSITIVE_OUTPUT_REFUND_MESSAGE = (
+    "Failed due to sensitive or copyrighted output. Credits refunded."
+)
+THIRD_PARTY_MODEL_REFUND_MESSAGE = (
+    "Failed due to a third-party model issue. Credits refunded."
+)
+REFUND_MESSAGE_RECEIPTS = {
+    "1000": (THIRD_PARTY_MODEL_REFUND_MESSAGE, "GENERATION_FAILED"),
     "3000": (SENSITIVE_INPUT_REFUND_MESSAGE, "CONTENT_MODERATION_FAILED"),
     "3008": (COPYRIGHT_REFUND_MESSAGE, "OUTPUT_MODERATION_FAILED"),
+    "3009": (SENSITIVE_OUTPUT_REFUND_MESSAGE, "OUTPUT_MODERATION_FAILED"),
 }
 
 
@@ -74,9 +82,12 @@ def classify_failure(code: str = "", message: str = "", *, stage: str = "") -> s
         return code
     if code == "3008":
         return "OUTPUT_MODERATION_FAILED"
-    observed = MODERATION_RECEIPTS.get(code)
+    observed = REFUND_MESSAGE_RECEIPTS.get(code)
     if observed and message == observed[0]:
         return observed[1]
+    for expected, category in REFUND_MESSAGE_RECEIPTS.values():
+        if message == expected:
+            return category
     text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", raw_code + " " + message)
     text = re.sub(r"[_-]+", " ", text).lower()
     # Output review takes priority even when its message also mentions input media.
@@ -225,7 +236,7 @@ def refund_receipt(task: dict[str, Any]) -> dict[str, Any]:
         outputs = detail.get("generations") or []
         request = task.get("request") or {}
         receipt_code = str(detail.get("failCode"))
-        expected = MODERATION_RECEIPTS.get(receipt_code)
+        expected = REFUND_MESSAGE_RECEIPTS.get(receipt_code)
         if (
             expected is not None
             and isinstance(outputs, list)
@@ -240,6 +251,7 @@ def refund_receipt(task: dict[str, Any]) -> dict[str, Any]:
                 and row.get("failMsg") == expected[0]
                 for row in (detail, record, outputs[0])
             )
+            and record.get("refundCreditDecimal") is None
             and outputs[0].get("refundCreditDecimal") is None
         ):
             return {
@@ -267,10 +279,11 @@ def public_failure(task: dict[str, Any]) -> dict[str, Any]:
     # Failed generation details may contain the specific code below a generic failMsg.
     if category == "GENERATION_FAILED":
         detail = audit.get("detail") or task.get("raw_status") or {}
-        category = classify_failure(
-            detail.get("failCode", "") if isinstance(detail, dict) else "",
-            failure_diagnostic(detail),
-        )
+        if isinstance(detail, dict):
+            detail_code = detail.get("failCode", "")
+            category = classify_failure(detail_code, detail.get("failMsg", ""))
+            if category == "GENERATION_FAILED":
+                category = classify_failure(detail_code, failure_diagnostic(detail))
     refunded = refund_confirmed(task)
     code = task.get("error_code") or "GENERATION_FAILED"
     result = {

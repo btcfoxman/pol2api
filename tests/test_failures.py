@@ -4,6 +4,8 @@ from app.task_errors import (
     COPYRIGHT_REFUND_MESSAGE,
     MESSAGE_VARIANTS,
     SENSITIVE_INPUT_REFUND_MESSAGE,
+    SENSITIVE_OUTPUT_REFUND_MESSAGE,
+    THIRD_PARTY_MODEL_REFUND_MESSAGE,
     classify_failure,
     public_failure,
     refund_receipt,
@@ -175,6 +177,49 @@ def sensitive_input_task():
     return value
 
 
+def sensitive_output_task():
+    value = copyright_task()
+    value["error_message"] = "生成失败，请重试~"
+    detail = value["upstream_response"]["detail"]
+    for row in (detail, detail["generateRecord"], detail["generations"][0]):
+        row.update(failCode=3009, failMsg=SENSITIVE_OUTPUT_REFUND_MESSAGE)
+    return value
+
+
+def third_party_model_task():
+    value = copyright_task()
+    value["error_message"] = "生成失败，请重试~"
+    detail = value["upstream_response"]["detail"]
+    for row in (detail, detail["generateRecord"], detail["generations"][0]):
+        row.update(failCode=1000, failMsg=THIRD_PARTY_MODEL_REFUND_MESSAGE)
+    return value
+
+
+@pytest.mark.parametrize(
+    "factory,category,message",
+    [
+        (
+            sensitive_output_task,
+            "OUTPUT_MODERATION_FAILED",
+            "生成的视频内容违规，请修改描述后重试，积分已返还~",
+        ),
+        (
+            third_party_model_task,
+            "GENERATION_FAILED",
+            "生成失败，积分已返还，请重试~",
+        ),
+    ],
+)
+def test_observed_failed_tasks_return_normalized_message(factory, category, message):
+    value = factory()
+    result = public_failure(value)
+    assert result["category"] == category
+    assert result["message"] == message
+    assert result["refunded"] is True
+    assert result["refund_source"] == "upstream_failure_message"
+    assert refund_receipt(value)["credits"] == 96
+
+
 def test_sensitive_input_receipt_does_not_guess_which_media_was_flagged():
     value = sensitive_input_task()
     value["request"].update(image_urls=["https://example.org/frame.jpg"] * 4)
@@ -216,7 +261,10 @@ def test_copyright_moderation_does_not_default_to_generic_failure(message, categ
     assert classify_failure("GENERATION_FAILED", message) == category
 
 
-@pytest.mark.parametrize("factory", [copyright_task, sensitive_input_task])
+@pytest.mark.parametrize(
+    "factory",
+    [copyright_task, sensitive_input_task, sensitive_output_task, third_party_model_task],
+)
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -239,7 +287,10 @@ def test_text_receipt_cannot_override_conflicting_or_uncertain_evidence(
     assert "积分已返还" not in error["message"]
 
 
-@pytest.mark.parametrize("factory", [copyright_task, sensitive_input_task])
+@pytest.mark.parametrize(
+    "factory",
+    [copyright_task, sensitive_input_task, sensitive_output_task, third_party_model_task],
+)
 def test_text_receipt_is_not_inferred_from_client_error_message_or_multi_output(
     factory,
 ):
@@ -255,6 +306,17 @@ def test_text_receipt_is_not_inferred_from_client_error_message_or_multi_output(
     assert public_failure(value_task)["outcome"] == "unknown"
     value_task = task(COPYRIGHT_REFUND_MESSAGE)
     assert public_failure(value_task)["refunded"] is False
+
+
+@pytest.mark.parametrize("factory", [sensitive_output_task, third_party_model_task])
+def test_text_receipt_does_not_override_recorded_zero_refund(factory):
+    value_task = factory()
+    value_task["upstream_response"]["detail"]["generateRecord"][
+        "refundCreditDecimal"
+    ] = "0"
+    result = public_failure(value_task)
+    assert result["refunded"] is False
+    assert "积分已返还" not in result["message"]
 
 
 def test_copyright_code_without_english_message_is_classified():

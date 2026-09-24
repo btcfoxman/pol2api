@@ -311,25 +311,37 @@ def test_retry_query_keeps_record_and_does_not_submit_or_charge_again(setup):
 
 
 @pytest.mark.parametrize(
-    "failure_code,category,message",
+    "failure_code,upstream_message,category,message",
     [
         (
             3008,
+            "This output was flagged for potential copyright issues. Please try a different prompt. Credits refunded.",
             "OUTPUT_MODERATION_FAILED",
             "生成的视频内容违规，请修改描述后重试，积分已返还~",
         ),
         (
             3000,
+            "Sensitive input flagged by the third-party model. Please modify your input. Credits refunded.",
             "CONTENT_MODERATION_FAILED",
             "检测到内容有敏感或违规情况，请修改后重试，积分已返还～",
         ),
+        (
+            3009,
+            "Failed due to sensitive or copyrighted output. Credits refunded.",
+            "OUTPUT_MODERATION_FAILED",
+            "生成的视频内容违规，请修改描述后重试，积分已返还~",
+        ),
+        (
+            1000,
+            "Failed due to a third-party model issue. Credits refunded.",
+            "GENERATION_FAILED",
+            "生成失败，积分已返还，请重试~",
+        ),
     ],
 )
-def test_terminal_moderation_refund_keeps_message_and_net_cost_consistent(
-    setup, monkeypatch, failure_code, category, message
+def test_terminal_refund_keeps_message_and_net_cost_consistent(
+    setup, monkeypatch, failure_code, upstream_message, category, message
 ):
-    from app.task_errors import COPYRIGHT_REFUND_MESSAGE, SENSITIVE_INPUT_REFUND_MESSAGE
-
     db, service, account = setup
     monkeypatch.setattr(
         FakeClient, "status", lambda *a: {"id": 123, "status": "failed"}
@@ -337,9 +349,7 @@ def test_terminal_moderation_refund_keeps_message_and_net_cost_consistent(
     failed = {
         "status": "failed",
         "failCode": failure_code,
-        "failMsg": COPYRIGHT_REFUND_MESSAGE
-        if failure_code == 3008
-        else SENSITIVE_INPUT_REFUND_MESSAGE,
+        "failMsg": upstream_message,
         "refundCreditDecimal": None,
     }
 
