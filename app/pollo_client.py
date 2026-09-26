@@ -147,9 +147,27 @@ class PolloClient:
                 **request_args,
             )
             if response.status_code == 429:
-                raise UpstreamError("密码登录请求过于频繁，请稍后重试", "RATE_LIMITED")
+                raise UpstreamError("密码登录请求过于频繁（回调 HTTP 429）", "RATE_LIMITED")
             if response.status_code != 200:
-                raise UpstreamError("密码登录被拒绝，请检查账号或稍后重试", "LOGIN_FAILED")
+                status = int(response.status_code)
+                challenge = response.headers.get("cf-mitigated") == "challenge"
+                if challenge or status == 403:
+                    raise UpstreamError(
+                        f"密码登录需要浏览器验证或检查代理（回调 HTTP {status}）",
+                        "CHALLENGE_REQUIRED",
+                    )
+                if status == 401:
+                    raise UpstreamError(
+                        "Pollo 拒绝邮箱或密码（回调 HTTP 401）", "LOGIN_FAILED"
+                    )
+                if status >= 500:
+                    raise UpstreamError(
+                        f"Pollo 登录服务暂不可用（回调 HTTP {status}）",
+                        "UPSTREAM_HTTP_ERROR",
+                    )
+                raise UpstreamError(
+                    f"Pollo 登录回调被拒绝（HTTP {status}）", "LOGIN_FAILED"
+                )
             try:
                 callback = response.json()
             except ValueError as exc:

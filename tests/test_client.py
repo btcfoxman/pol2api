@@ -167,6 +167,32 @@ def test_password_login_exchanges_csrf_for_session(monkeypatch):
     c.close()
 
 
+@pytest.mark.parametrize(
+    "status,code",
+    [(400, "LOGIN_FAILED"), (401, "LOGIN_FAILED"), (403, "CHALLENGE_REQUIRED"), (503, "UPSTREAM_HTTP_ERROR")],
+)
+def test_password_login_preserves_safe_callback_status(monkeypatch, status, code):
+    c = client()
+    monkeypatch.setattr(
+        c.session,
+        "get",
+        lambda *args, **kwargs: SimpleNamespace(
+            status_code=200, json=lambda: {"csrfToken": "csrf-test"}
+        ),
+    )
+    monkeypatch.setattr(
+        c.session,
+        "post",
+        lambda *args, **kwargs: SimpleNamespace(status_code=status, headers={}),
+    )
+    with pytest.raises(UpstreamError) as raised:
+        c.login_password("user@example.com", "fake-secret")
+    assert raised.value.code == code
+    assert f"HTTP {status}" in str(raised.value)
+    assert "fake-secret" not in str(raised.value)
+    c.close()
+
+
 def test_prepare_uses_full_references_and_discount_quote(monkeypatch):
     c = client()
     calls = []
