@@ -26,10 +26,21 @@ def agent_prompt(payload):
         else f"本次最终恰好生成并交付 {count} 个视频"
     )
     resolution = str(payload["resolution"]).upper()
+    audio_rule = (
+        "调用视频生成工具时必须启用声音生成（generateAudio=true）；"
+        "必须在生成视频时同步生成与画面内容匹配的声音，并将声音合成进最终视频；"
+        "成片必须包含非静音的可听音轨（对白、环境音或音效按内容生成），不得输出无声视频；"
+        "对白使用文中语言；"
+        if payload.get("generate_audio", True)
+        else (
+            "调用视频生成工具时关闭声音生成（generateAudio=false）；"
+            "本次按调用参数生成无声视频，不要添加声音或音轨；"
+        )
+    )
     rule = (
         f"强制指定 {model} 模型；{quantity}；"
         "不要额外生成候选版本；"
-        "对白使用文中语言；"
+        f"{audio_rule}"
         f"最终视频格式必须是 {payload['duration']}s、{resolution}、{payload['aspect_ratio']}。"
         "不要自行更换模型或格式。"
     )

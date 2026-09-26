@@ -9,6 +9,7 @@ PAYLOAD = {
     "duration": 4,
     "resolution": "480p",
     "aspect_ratio": "21:9",
+    "generate_audio": True,
     "n": 1,
 }
 
@@ -22,6 +23,17 @@ def test_agent_prompt_uses_normalized_video_parameters():
     assert "不要额外生成候选版本" in prompt
     assert "4s、480P、21:9" in prompt
     assert "对白使用文中语言" in prompt
+    assert "同步生成与画面内容匹配的声音" in prompt
+    assert "generateAudio=true" in prompt
+    assert "非静音的可听音轨" in prompt
+    assert "不得输出无声视频" in prompt
+
+
+def test_agent_prompt_respects_explicit_silent_video_request():
+    prompt = agent_prompt({**PAYLOAD, "generate_audio": False})
+    assert "按调用参数生成无声视频" in prompt
+    assert "generateAudio=false" in prompt
+    assert "非静音的可听音轨" not in prompt
 
 
 def test_agent_prompt_allows_requested_multiple_outputs_without_conflicting_rule():
