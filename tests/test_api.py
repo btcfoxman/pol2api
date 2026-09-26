@@ -118,6 +118,95 @@ def test_admin_settings_sync_and_task_defaults(api):
     assert c.delete("/api/tasks").json()["deleted"] == 0
 
 
+def test_batch_import_email_password_proxy_and_row_errors(api):
+    client, db = api
+    client.post("/login", data={"token": "admin-key"})
+    response = client.post(
+        "/api/accounts/batch-import",
+        json={
+            "text": "first@example.com|fake-secret|127.0.0.1:20001\n"
+            "bad-row\n"
+            "second@example.com|other-secret|socks5://127.0.0.1:20002",
+            "start_login": False,
+        },
+    )
+    assert response.status_code == 200
+    result = response.json()
+    assert result["imported"] == 2
+    assert result["needs_session"] == 2
+    assert result["login_queued"] == 0
+    assert result["errors"] == [
+        {"index": 2, "error": "格式应为 邮箱|密码|代理，邮箱和密码不能为空"}
+    ]
+    assert "fake-secret" not in response.text
+    assert "other-secret" not in response.text
+    saved = db.get_account(result["accounts"][0]["id"], include_secrets=True)
+    assert saved["password"] == "fake-secret"
+    assert saved["proxy_url"] == "socks5://127.0.0.1:20001"
+    assert saved["enabled"] is False
+    assert saved["status"] == "login_required"
+
+
+def test_batch_import_queues_password_login_by_default(api, monkeypatch):
+    client, db = api
+    client.post("/login", data={"token": "admin-key"})
+    jobs = []
+    monkeypatch.setattr(
+        main.service._maintenance,
+        "submit",
+        lambda function, *args: jobs.append((function, args)),
+    )
+    response = client.post(
+        "/api/accounts/batch-import",
+        json={"text": "queued@example.com|fake-secret|127.0.0.1:20001"},
+    )
+    assert response.status_code == 200
+    assert response.json()["login_queued"] == 1
+    assert len(jobs) == 1
+    account = db.get_account(response.json()["accounts"][0]["id"])
+    assert account["status"] == "login_pending"
+    assert account["enabled"] is False
+
+
+def test_batch_import_keeps_valid_json_rows_and_existing_session(api):
+    client, db = api
+    client.post("/login", data={"token": "admin-key"})
+    existing = db.upsert_account(
+        {
+            "name": "saved@example.com",
+            "email": "saved@example.com",
+            "cookie_header": "session=existing",
+            "max_concurrency": 4,
+            "enabled": True,
+        }
+    )
+    response = client.post(
+        "/api/accounts/batch-import",
+        json={
+            "accounts": [
+                {"email": "fresh@example.com", "cookie_header": "session=new"},
+                {"email": "invalid@example.com", "max_concurrency": 0},
+            ],
+            "start_login": False,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["imported"] == 1
+    assert response.json()["errors"][0]["index"] == 2
+    assert "session=new" not in response.text
+    result = client.post(
+        "/api/accounts/batch-import",
+        json={"text": "saved@example.com|new-secret|127.0.0.1:20003"},
+    )
+    assert result.json()["imported"] == 1
+    updated = db.get_account(existing["id"], include_secrets=True)
+    assert updated["cookie_header"] == "session=existing"
+    assert updated["password"] == "new-secret"
+    assert updated["enabled"] is True
+    assert updated["auto_login"] is True
+    assert updated["max_concurrency"] == 4
+
+
 def test_responses_and_generic_content_forms(api):
     c, db = api
     headers = {"Authorization": "Bearer api-key"}

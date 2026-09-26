@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 import pytest
 from app.config import Settings
 from app.pollo_client import PolloClient, SubmissionUnknown, UpstreamError, result_urls
@@ -125,6 +126,44 @@ def test_cookie_auth_and_balance_no_double_count(monkeypatch):
     assert state["available_balance"] == 14
     assert state["team_id"] == "project-test"
     assert c.session.cookies.get("__Secure-next-auth.session-token") == "fake"
+    c.close()
+
+
+def test_password_login_exchanges_csrf_for_session(monkeypatch):
+    c = PolloClient(
+        {"proxy_url": "socks5://127.0.0.1:20001"},
+        Settings(request_timeout_seconds=10),
+    )
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append(("GET", url, kwargs))
+        data = (
+            {"csrfToken": "csrf-test"}
+            if url.endswith("/api/auth/csrf")
+            else {"user": {"id": "user-test"}}
+        )
+        return SimpleNamespace(status_code=200, json=lambda: data)
+
+    def post(url, **kwargs):
+        calls.append(("POST", url, kwargs))
+        c.session.cookies.set(
+            "__Secure-next-auth.session-token", "new-session", domain="pollo.ai"
+        )
+        return SimpleNamespace(status_code=200, json=lambda: {"url": "https://pollo.ai/"})
+
+    monkeypatch.setattr(c.session, "get", get)
+    monkeypatch.setattr(c.session, "post", post)
+    session = c.login_password("user@example.com", "fake-secret")
+    assert [method for method, _, _ in calls] == ["GET", "POST", "GET"]
+    form = calls[1][2]["data"]
+    assert form["email"] == "user@example.com"
+    assert form["password"] == "fake-secret"
+    assert form["csrfToken"] == "csrf-test"
+    assert form["version"] == "v1"
+    assert len(form["deviceNumber"]) == 64
+    assert all(call[2]["proxy"] == "socks5://127.0.0.1:20001" for call in calls)
+    assert "new-session" in session["cookie_header"]
     c.close()
 
 

@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:,">
   <title>POL2API Console</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260918-1">
+  <link rel="stylesheet" href="/static/styles.css?v=20260926-1">
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-  <script src="/static/app.js?v=20260918-1" defer></script>
+  <script src="/static/app.js?v=20260926-1" defer></script>
 </head>
 <body>
   <main class="shell">
@@ -80,9 +80,9 @@
   </form></dialog>
 
   <dialog id="batchDialog"><form class="dialog-form" id="batchForm">
-    <header><div><p class="eyebrow">BATCH IMPORT</p><h2>批量导入会话</h2></div><button class="icon-button close" type="button"><i data-lucide="x"></i></button></header>
-    <label class="editor-label">账号 JSON 数组<textarea name="text" class="mono json-editor" rows="15" required placeholder='[{"name":"account-1","cookie_header":"...","proxy_url":"socks5://127.0.0.1:20001"}]'></textarea></label>
-    <label class="check"><input name="start_login" type="checkbox">导入后校验会话和余额</label><label class="check"><input name="use_proxy_pool" type="checkbox" checked>未填写代理时从代理池均衡分配</label>
+    <header><div><p class="eyebrow">BATCH IMPORT</p><h2>批量导入账号</h2></div><button class="icon-button close" type="button"><i data-lucide="x"></i></button></header>
+    <label class="editor-label">每行 邮箱|密码|代理，或账号 JSON 数组<textarea name="text" class="mono json-editor" rows="15" required placeholder='user1@example.com|password1|socks5://127.0.0.1:20001&#10;user2@example.com|password2|socks5://127.0.0.1:20002'></textarea></label>
+    <label class="check"><input name="start_login" type="checkbox" checked>导入后自动密码登录，并校验会话和余额</label><label class="check"><input name="use_proxy_pool" type="checkbox" checked>未填写代理时从代理池均衡分配</label>
     <div class="batch-result" id="batchResult" hidden></div>
     <footer><button class="button close" type="button">取消</button><button class="button primary" type="submit"><i data-lucide="upload"></i><span>导入</span></button></footer>
   </form></dialog>

@@ -14,6 +14,7 @@ class AccountUpsert(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=120)
     email: str = ""
+    password: str = ""
     cookie_header: str = ""
     cookies: str = ""
     cookie_records: list[BrowserCookie] = Field(default_factory=list)

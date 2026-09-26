@@ -3,9 +3,13 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
+import re
 import threading
 import time
 import uuid
+from urllib.parse import urlsplit
+
+from pydantic import ValidationError
 
 from app.cdp import read_session
 from app.config import normalize_proxy_url
@@ -22,6 +26,58 @@ from app.task_errors import failure_diagnostic, public_failure, refund_receipt
 
 LOGGER = logging.getLogger("pol2api")
 TERMINAL = {"succeeded", "failed", "expired"}
+
+
+def _account_batch_rows(source):
+    if isinstance(source, str):
+        text = source.lstrip("\ufeff").strip()
+        if not text:
+            raise ValueError("请填写账号 JSON 数组或逐行 账|密|代理")
+        if text.startswith(("[", "{")):
+            try:
+                source = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ValueError("账号 JSON 格式错误") from exc
+            if isinstance(source, dict):
+                source = source.get("accounts")
+        else:
+            rows = []
+            for line_number, line in enumerate(text.splitlines(), 1):
+                if not line.strip():
+                    continue
+                parts = [part.strip() for part in line.split("|")]
+                if len(parts) != 3 or not parts[0] or not parts[1]:
+                    rows.append((line_number, None, "格式应为 邮箱|密码|代理，邮箱和密码不能为空"))
+                    continue
+                account, password, proxy = parts
+                if not re.fullmatch(r"[^\s@|]+@[^\s@|]+\.[^\s@|]+", account):
+                    rows.append((line_number, None, "账号需要填写有效邮箱"))
+                    continue
+                if proxy:
+                    try:
+                        parsed = urlsplit(normalize_proxy_url(proxy))
+                        valid_proxy = bool(parsed.hostname and parsed.port)
+                    except ValueError:
+                        valid_proxy = False
+                    if not valid_proxy:
+                        rows.append((line_number, None, "代理地址需要有效主机和端口"))
+                        continue
+                rows.append(
+                    (
+                        line_number,
+                        {
+                            "name": account,
+                            "email": account,
+                            "password": password,
+                            "proxy_url": proxy,
+                        },
+                        None,
+                    )
+                )
+            return rows
+    if not isinstance(source, list):
+        raise ValueError("批量导入需要账号 JSON 数组或逐行 账|密|代理")
+    return [(index, raw, None) for index, raw in enumerate(source, 1)]
 
 
 def _generation_restricted(error):
@@ -95,6 +151,16 @@ class PolService:
                 )
         for task in self.db.recoverable_tasks():
             self._schedule(task["id"])
+        pending_logins = [
+            account["id"]
+            for account in self.db.list_accounts()
+            if account["status"] in {"login_pending", "logging_in"}
+            and account.get("password")
+        ]
+        if pending_logins:
+            with self._lock:
+                self._checking.update(pending_logins)
+            self._maintenance.submit(self._login_batch, pending_logins)
         self._thread = threading.Thread(
             target=self._maintain, daemon=True, name="pol-maintenance"
         )
@@ -163,25 +229,178 @@ class PolService:
         return self.upsert_account(payload, start_login=False)
 
     def batch_import(self, source, *, start_login=False, use_proxy_pool=True):
-        if isinstance(source, str):
-            source = json.loads(source)
-        if not isinstance(source, list):
-            raise ValueError("批量导入需要账号 JSON 数组")
         imported = []
         errors = []
+        needs_session = 0
+        login_ids = []
         from app.schemas import AccountSyncRequest
 
-        for index, raw in enumerate(source):
+        for index, raw, parse_error in _account_batch_rows(source):
+            if parse_error:
+                errors.append({"index": index, "error": parse_error})
+                continue
+            if not isinstance(raw, dict):
+                errors.append({"index": index, "error": "账号必须是 JSON 对象"})
+                continue
             try:
-                value = AccountSyncRequest.model_validate(raw).model_dump()
+                payload = {
+                    **raw,
+                    "name": str(raw.get("name") or raw.get("email") or ""),
+                }
+                if not payload.get("email") and "@" in payload["name"]:
+                    payload["email"] = payload["name"]
+                value = AccountSyncRequest.model_validate(payload).model_dump(
+                    exclude_unset=True
+                )
+                if value.get("password") and not re.fullmatch(
+                    r"[^\s@|]+@[^\s@|]+\.[^\s@|]+", value.get("email") or ""
+                ):
+                    errors.append({"index": index, "error": "密码登录需要有效邮箱"})
+                    continue
                 value["use_proxy_pool"] = use_proxy_pool
+                existing = self.db.find_account_by_identity(
+                    value, include_secrets=True
+                )
+                new_session = bool(
+                    value.get("cookie_header")
+                    or value.get("cookies")
+                    or value.get("cookie_records")
+                )
+                has_session = new_session or bool(
+                    existing
+                    and (existing.get("cookie_header") or existing.get("cookie_records"))
+                )
+                if existing:
+                    value.setdefault("enabled", existing["enabled"])
+                    value.setdefault(
+                        "auto_login", existing["auto_login"] or bool(value.get("password"))
+                    )
+                    value.setdefault("max_concurrency", existing["max_concurrency"])
+                    if not value.get("proxy_url") and existing.get("proxy_url"):
+                        value["proxy_url"] = existing["proxy_url"]
+                else:
+                    value.setdefault("enabled", has_session)
+                    value.setdefault("auto_login", bool(value.get("password")))
+                if not has_session:
+                    value["enabled"] = False
                 record = self.upsert_account(value)
+                if not has_session:
+                    needs_session += 1
+                    login_queued = bool(start_login and value.get("password"))
+                    record = self.db.update_account(
+                        record["id"],
+                        {
+                            "status": "login_pending" if login_queued else "login_required",
+                            "last_error": "" if login_queued else "需要密码登录或同步浏览器会话",
+                        },
+                    )
+                    if login_queued:
+                        login_ids.append(record["id"])
                 imported.append(record)
-                if start_login:
+                if start_login and has_session:
                     self._maintenance.submit(self._safe_check, record["id"])
-            except Exception as exc:
-                errors.append({"index": index + 1, "error": str(exc)})
-        return {"imported": len(imported), "accounts": imported, "errors": errors}
+            except ValidationError as exc:
+                fields = sorted(
+                    {str(error["loc"][0]) for error in exc.errors() if error["loc"]}
+                )
+                errors.append(
+                    {"index": index, "error": "字段格式错误：" + ", ".join(fields)}
+                )
+            except ValueError:
+                errors.append({"index": index, "error": "账号名称或邮箱无效或与其他账号冲突"})
+            except Exception:
+                LOGGER.error("Batch account import failed at item %s", index)
+                errors.append({"index": index, "error": "账号导入失败"})
+        if login_ids:
+            with self._lock:
+                self._checking.update(login_ids)
+            self._maintenance.submit(self._login_batch, login_ids)
+        return {
+            "imported": len(imported),
+            "accounts": imported,
+            "errors": errors,
+            "needs_session": needs_session,
+            "login_queued": len(login_ids),
+        }
+
+    def _login_batch(self, account_ids):
+        for index, account_id in enumerate(account_ids):
+            if self._stop.is_set():
+                with self._lock:
+                    self._checking.difference_update(account_ids[index:])
+                return
+            try:
+                self._safe_password_login(account_id)
+            finally:
+                with self._lock:
+                    self._checking.discard(account_id)
+
+    def schedule_password_login(self, account_id):
+        account = self.db.get_account(account_id, include_secrets=True)
+        if not account or not account.get("password"):
+            raise ValueError("该账号没有保存密码")
+        if account.get("active_tasks"):
+            raise ValueError("账号有运行任务，请完成后重试登录")
+        with self._lock:
+            if account_id in self._checking:
+                return False
+            self._checking.add(account_id)
+        self.db.update_account(
+            account_id, {"enabled": False, "status": "login_pending", "last_error": ""}
+        )
+        self._maintenance.submit(self._login_batch, [account_id])
+        return True
+
+    def _safe_password_login(self, account_id):
+        with self._account_lock(account_id):
+            account = self.db.get_account(account_id, include_secrets=True)
+            if not account or not account.get("password"):
+                return
+            self.db.update_account(account_id, {"status": "logging_in", "last_error": ""})
+            client = None
+            try:
+                client = self.client_factory(account, self.settings)
+                session = client.login_password(account["email"], account["password"])
+                self.db.update_account(account_id, session)
+                checked = self.check_account(account_id)
+                if checked.get("status") == "generation_restricted":
+                    self.db.update_account(account_id, {"last_login_at": now_ts()})
+                    return
+                balance = float(checked.get("last_balance") or 0)
+                threshold = self.settings.low_balance_disable_threshold
+                enabled = balance >= threshold
+                self.db.update_account(
+                    account_id,
+                    {
+                        "enabled": enabled,
+                        "status": "active" if enabled else "disabled_low_balance",
+                        "last_error": ""
+                        if enabled
+                        else f"余额 {balance:g} 低于自动禁用阈值 {threshold:g}",
+                        "last_login_at": now_ts(),
+                    },
+                )
+            except UpstreamError as exc:
+                status = (
+                    "challenge_required"
+                    if exc.code == "CHALLENGE_REQUIRED"
+                    else "network_error"
+                    if exc.code in {"NETWORK_ERROR", "RATE_LIMITED"}
+                    else "login_failed"
+                )
+                self.db.update_account(
+                    account_id,
+                    {"enabled": False, "status": status, "last_error": str(exc)},
+                )
+            except Exception:
+                LOGGER.error("Password login failed for account %s", account_id)
+                self.db.update_account(
+                    account_id,
+                    {"enabled": False, "status": "login_failed", "last_error": "密码登录失败"},
+                )
+            finally:
+                if client is not None:
+                    client.close()
 
     def update_account(self, account_id, changes):
         if not self.db.get_account(account_id):
@@ -233,11 +452,13 @@ class PolService:
         try:
             return client.account_state(), client
         except UpstreamError as exc:
-            if (
-                exc.code != "AUTH_REQUIRED"
-                or not self.settings.browser_recovery_enabled
-                or not account.get("cdp_port")
-            ):
+            if exc.code != "AUTH_REQUIRED":
+                raise
+            if account.get("auto_login") and account.get("password"):
+                session = client.login_password(account["email"], account["password"])
+                self.db.update_account(account["id"], session)
+                return client.account_state(), client
+            if not self.settings.browser_recovery_enabled or not account.get("cdp_port"):
                 raise
             self.db.update_account(account["id"], read_session(account["cdp_port"]))
             client.close()

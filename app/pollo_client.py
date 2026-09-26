@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import ipaddress
 import json
@@ -94,6 +95,84 @@ class PolloClient:
             cookie_records=records,
             cookie_header="; ".join(f"{x['name']}={x['value']}" for x in records),
         )
+
+    def login_password(self, email: str, password: str):
+        """Exchange Pollo email credentials for a NextAuth session."""
+        # Observed in Pollo's browser sigV1 implementation (2026-09-18).
+        signature_seed = hashlib.md5(
+            b"nvKTEonFAll-in-One AI Writing CopilotwNLf2plwvtlcCxam"
+        ).hexdigest()
+        device_number = hashlib.sha256(
+            (signature_seed + password + "xJ7fTJBgQ55/9r|").encode()
+        ).hexdigest()
+        self.session.cookies.clear()
+        request_args = dict(
+            proxy=self.proxy or None,
+            timeout=self.settings.request_timeout_seconds,
+            allow_redirects=False,
+        )
+        headers = {
+            "Accept": "application/json",
+            "Origin": self.base,
+            "Referer": self.base + "/login",
+        }
+        if self.account.get("user_agent"):
+            headers["User-Agent"] = self.account["user_agent"]
+        try:
+            csrf = self.session.get(
+                self.base + "/api/auth/csrf", headers=headers, **request_args
+            )
+            if csrf.status_code != 200:
+                raise UpstreamError("登录需要浏览器验证", "CHALLENGE_REQUIRED")
+            try:
+                csrf_data = csrf.json()
+            except ValueError as exc:
+                raise UpstreamError("登录需要浏览器验证", "CHALLENGE_REQUIRED") from exc
+            csrf_token = csrf_data.get("csrfToken") if isinstance(csrf_data, dict) else None
+            if not isinstance(csrf_token, str) or not csrf_token:
+                raise UpstreamError("登录需要浏览器验证", "CHALLENGE_REQUIRED")
+            response = self.session.post(
+                self.base + "/api/auth/callback/system-user",
+                data={
+                    "email": email,
+                    "password": password,
+                    "deviceNumber": device_number,
+                    "version": "v1",
+                    "redirect": "false",
+                    "csrfToken": csrf_token,
+                    "callbackUrl": self.base + "/",
+                    "json": "true",
+                },
+                headers={**headers, "Content-Type": "application/x-www-form-urlencoded"},
+                **request_args,
+            )
+            if response.status_code == 429:
+                raise UpstreamError("密码登录请求过于频繁，请稍后重试", "RATE_LIMITED")
+            if response.status_code != 200:
+                raise UpstreamError("密码登录被拒绝，请检查账号或稍后重试", "LOGIN_FAILED")
+            try:
+                callback = response.json()
+            except ValueError as exc:
+                raise UpstreamError("密码登录需要浏览器验证", "CHALLENGE_REQUIRED") from exc
+            if not isinstance(callback, dict):
+                raise UpstreamError("密码登录响应无效", "LOGIN_FAILED")
+            callback_url = str(callback.get("url") or "")
+            if "error=" in callback_url:
+                raise UpstreamError("邮箱或密码错误，或账号需要验证", "LOGIN_FAILED")
+            session = self.session.get(
+                self.base + "/api/auth/session", headers=headers, **request_args
+            )
+            session_data = session.json() if session.status_code == 200 else {}
+            if (
+                not isinstance(session_data, dict)
+                or not (session_data.get("user") or {}).get("id")
+            ):
+                raise UpstreamError("密码登录未建立会话", "LOGIN_FAILED")
+        except UpstreamError:
+            raise
+        except Exception as exc:
+            raise UpstreamError("密码登录网络请求失败", "NETWORK_ERROR") from exc
+        return self.session_context()
 
     def _request(self, method, path, *, payload=None, params=None):
         headers = {

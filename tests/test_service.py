@@ -27,6 +27,11 @@ class FakeClient:
             "plan": "free",
         }
 
+    def login_password(self, email, password):
+        assert email and password
+        self.account["cookie_header"] = "session=from-password-login"
+        return {"cookie_header": "session=from-password-login"}
+
     def prepare(self, payload):
         return (
             {"modelKey": payload["upstream_model"]},
@@ -85,6 +90,50 @@ def request():
         "image_urls": ["https://example.com/a.png"],
         "resolution": "480p",
     }
+
+
+def test_password_import_can_log_in_and_activate(setup):
+    db, service, _ = setup
+    result = service.batch_import(
+        "user@example.com|fake-secret|127.0.0.1:20001", start_login=False
+    )
+    account_id = result["accounts"][0]["id"]
+    assert db.get_account(account_id)["status"] == "login_required"
+    service._safe_password_login(account_id)
+    account = db.get_account(account_id, include_secrets=True)
+    assert account["status"] == "active"
+    assert account["enabled"] is True
+    assert account["last_balance"] == 14
+    assert account["cookie_header"] == "session=from-password-login"
+    assert account["password"] == "fake-secret"
+
+
+def test_expired_cookie_recovers_with_saved_password(setup, monkeypatch):
+    db, service, original = setup
+    db.update_account(
+        original["id"],
+        {
+            "email": "fixture@example.com",
+            "password": "fake-secret",
+            "auto_login": True,
+            "cookie_header": "session=expired",
+        },
+    )
+    original_state = FakeClient.account_state
+
+    def state(client):
+        if client.account.get("cookie_header") == "session=expired":
+            from app.pollo_client import UpstreamError
+
+            raise UpstreamError("expired", "AUTH_REQUIRED", 401)
+        return original_state(client)
+
+    monkeypatch.setattr(FakeClient, "account_state", state)
+    checked = service.check_account(original["id"])
+    assert checked["status"] == "active"
+    assert db.get_account(original["id"], include_secrets=True)["cookie_header"] == (
+        "session=from-password-login"
+    )
 
 
 def test_job_lifecycle_balance_and_public_view(setup):
