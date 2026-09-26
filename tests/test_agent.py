@@ -24,12 +24,13 @@ def test_agent_prompt_uses_normalized_video_parameters():
     assert "4s、480P、21:9" in prompt
     assert "对白使用文中语言" in prompt
     assert "同步生成与画面内容匹配的声音" in prompt
-    assert "model=seedance-2-0-mini" in prompt
+    assert "model 必须是 seedance-2-0-mini" in prompt
     assert "duration=4" in prompt
     assert "resolution=480p" in prompt
     assert "aspect_ratio=21:9" in prompt
     assert "options.generate_audio=true" in prompt
-    assert "不能省略，也不能只写在描述里" in prompt
+    assert "VideoTask 顶层不接受 duration、resolution、aspect_ratio" in prompt
+    assert "若视频工具返回内容审核或违规错误，不要重复提交" in prompt
     assert "不得用 adaptive、auto" in prompt
     assert "非静音的可听音轨" in prompt
     assert "不得输出无声视频" in prompt
@@ -116,7 +117,7 @@ def test_agent_final_artifact_and_discounted_charge():
     assert "比例 21:9" in wrong["errorMessage"]
     empty = agent_video_detail({"artifact_groups": {}}, messages, PAYLOAD)
     assert empty["status"] == "failed"
-    assert empty["errorCode"] == "GENERATION_FAILED"
+    assert empty["errorCode"] == "AGENT_NO_VIDEO"
     extra = deepcopy(artifacts)
     extra_video = deepcopy(extra["artifact_groups"]["video"]["artifacts"][0])
     extra_video["media"]["aspect_ratio"] = "3:4"
@@ -125,3 +126,40 @@ def test_agent_final_artifact_and_discounted_charge():
     assert selected["status"] == "succeed"
     assert len(selected["generations"]) == 1
     assert selected["generations"][0]["videoMeta"]["aspect_ratio"] == "21:9"
+
+
+def test_agent_no_video_preserves_output_moderation_reason():
+    messages = [
+        {
+            "type": "tool", "name": "generate_video", "status": "error",
+            "content": "policy violation: OutputVideoSensitiveContentDetected.PolicyViolation",
+            "additional_kwargs": {"billing": {"total": 0}},
+        },
+        {"type": "tool", "name": "message_notify_user",
+         "additional_kwargs": {"billing": {"total": 2}}},
+    ]
+    result = agent_video_detail({"artifact_groups": {}}, messages, PAYLOAD)
+    assert result["status"] == "failed"
+    assert result["errorCode"] == "OUTPUT_MODERATION_FAILED"
+    assert result["errorMessage"] == "OutputVideoSensitiveContentDetected"
+    assert result["generateRecord"]["creditDecimal"] == 2
+
+
+def test_agent_no_video_identifies_unsupported_combination():
+    messages = [{
+        "type": "tool", "name": "list_generation_models",
+        "content": "NO model satisfies all requirements; options generate_audio unsupported",
+    }]
+    result = agent_video_detail({"artifact_groups": {}}, messages, PAYLOAD)
+    assert result["errorCode"] == "AGENT_PARAMETERS_UNSUPPORTED"
+    assert result["status"] == "failed"
+
+
+def test_agent_invalid_tool_shape_has_its_own_category():
+    messages = [{
+        "type": "tool", "name": "generate", "status": "error",
+        "content": "duration Extra inputs are not permitted",
+        "additional_kwargs": {"error_code": "INVALID_PARAMS"},
+    }]
+    result = agent_video_detail({"artifact_groups": {}}, messages, PAYLOAD)
+    assert result["errorCode"] == "AGENT_TOOL_INVALID_PARAMS"

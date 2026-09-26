@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import mimetypes
+import re
 from pathlib import PurePosixPath
 from urllib.parse import urlsplit
 
@@ -28,11 +29,14 @@ def agent_prompt(payload):
     resolution = str(payload["resolution"]).upper()
     audio_enabled = bool(payload.get("generate_audio", True))
     tool_rule = (
-        "调用 generate_video 工具时，每个 tasks 项必须显式传入"
-        f"model={payload['upstream_model']}、duration={payload['duration']}、"
-        f"resolution={payload['resolution']}、aspect_ratio={payload['aspect_ratio']}、"
-        f"options.generate_audio={'true' if audio_enabled else 'false'}；"
-        "这些值必须是真实工具参数，不能省略，也不能只写在描述里；"
+        "调用 generate_video 工具时，tasks 项的 model 必须是"
+        f" {payload['upstream_model']}；任务描述必须明确"
+        f" duration={payload['duration']}、resolution={payload['resolution']}、"
+        f"aspect_ratio={payload['aspect_ratio']}；"
+        "VideoTask 顶层不接受 duration、resolution、aspect_ratio，"
+        "不要将这三个字段直接放入 tasks 项；"
+        f"仅在模型支持时传入 options.generate_audio={'true' if audio_enabled else 'false'}；"
+        "如果模型清单明确表示所选参数组合不可用，停止生成并说明不支持；"
     )
     if payload["aspect_ratio"] not in {"adaptive", "auto"}:
         tool_rule += "不得用 adaptive、auto 或参考图比例代替指定的 aspect_ratio；"
@@ -52,6 +56,8 @@ def agent_prompt(payload):
         f"{audio_rule}"
         f"最终视频格式必须是 {payload['duration']}s、{resolution}、{payload['aspect_ratio']}。"
         "若工具不支持上述模型或参数，停止生成并说明不支持；不要自行更换模型或格式。"
+        "若视频工具返回内容审核或违规错误，不要重复提交，也不要换模型重试；"
+        "立即停止并说明审核失败。"
     )
     original = str(payload.get("prompt") or "").rstrip()
     return original + "\n\n" + rule if original else rule
@@ -94,6 +100,36 @@ def agent_files(body):
 
 def _normalized_model(value):
     return "".join(char for char in str(value).lower() if char.isalnum())
+
+
+def agent_failure_reason(messages):
+    """Extract a safe category from Agent tool results without storing prompts."""
+    unsupported = False
+    invalid_params = False
+    for message in messages:
+        if not isinstance(message, dict) or message.get("type") != "tool":
+            continue
+        name = message.get("name")
+        content = str(message.get("content") or "")
+        if name == "list_generation_models" and re.search(
+            r"NO model satisfies all requirements", content, re.IGNORECASE
+        ):
+            unsupported = True
+        if message.get("status") != "error" or name not in {"generate", "generate_video"}:
+            continue
+        if re.search(
+            r"OutputVideoSensitiveContentDetected|output video.{0,80}(?:sensitive|copyright|policy violation)",
+            content,
+            re.IGNORECASE,
+        ):
+            return "OUTPUT_MODERATION_FAILED", "OutputVideoSensitiveContentDetected"
+        if (message.get("additional_kwargs") or {}).get("error_code") == "INVALID_PARAMS":
+            invalid_params = True
+    if unsupported:
+        return "AGENT_PARAMETERS_UNSUPPORTED", "Agent model parameter combination unsupported"
+    if invalid_params:
+        return "AGENT_TOOL_INVALID_PARAMS", "Agent video tool rejected parameters"
+    return "AGENT_NO_VIDEO", "Agent did not produce a video"
 
 
 def agent_video_detail(artifacts, messages, payload):
@@ -169,24 +205,19 @@ def agent_video_detail(artifacts, messages, payload):
         if isinstance(billing.get("total"), (int, float)):
             cost = max(float(billing["total"]), 0)
             break
-    error_code = (
-        "AGENT_OUTPUT_MISMATCH"
-        if mismatches and videos
-        else "GENERATION_FAILED"
-        if mismatches
-        else ""
-    )
+    error_code, error_message = "", ""
+    if mismatches and videos:
+        error_code = "AGENT_OUTPUT_MISMATCH"
+        error_message = "Agent 输出与请求不一致：" + "、".join(
+            dict.fromkeys(mismatches)
+        )
+    elif mismatches:
+        error_code, error_message = agent_failure_reason(messages)
     return {
         "status": "failed" if mismatches else "succeed",
         "errorCode": error_code,
         "generations": outputs,
         "generateRecord": {"creditDecimal": cost},
         "thumbnail": (outputs[0].get("previewUrl") if outputs else ""),
-        "errorMessage": (
-            "Agent 输出与请求不一致：" + "、".join(dict.fromkeys(mismatches))
-            if error_code == "AGENT_OUTPUT_MISMATCH"
-            else "Agent 未生成视频"
-            if error_code
-            else ""
-        ),
+        "errorMessage": error_message,
     }

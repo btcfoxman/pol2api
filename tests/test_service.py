@@ -159,6 +159,49 @@ def test_agent_mode_submits_and_returns_video_via_existing_task_api(setup, monke
     assert db.get_account(account["id"])["status"] == "generation_restricted"
 
 
+def test_agent_moderation_failure_returns_classified_message(setup, monkeypatch):
+    db, service, _ = setup
+    service.settings.agent_mode_enabled = True
+    thread_id = "11111111-2222-3333-4444-555555555555"
+    monkeypatch.setattr(
+        FakeClient, "prepare",
+        lambda client, payload: ({"projectId": "project", "userInput": {}},
+                                 {"discountCost": 12}, 12),
+    )
+    monkeypatch.setattr(
+        FakeClient, "generate_agent",
+        lambda client, body, payload: {"id": thread_id}, raising=False,
+    )
+    monkeypatch.setattr(
+        FakeClient, "agent_status",
+        lambda client, record_id, payload: {"id": record_id, "status": "failed"},
+        raising=False,
+    )
+    monkeypatch.setattr(
+        FakeClient, "agent_detail",
+        lambda client, record_id, payload: {
+            "status": "failed",
+            "errorCode": "OUTPUT_MODERATION_FAILED",
+            "errorMessage": "OutputVideoSensitiveContentDetected",
+            "generateRecord": {"creditDecimal": 2},
+            "generations": [],
+        }, raising=False,
+    )
+    task = service.create_task(request())
+    done = service.wait_task(task["id"], 5)
+    public = service.public_task(done)
+    assert done["status"] == "failed"
+    assert done["error_code"] == "OUTPUT_MODERATION_FAILED"
+    assert done["actual_cost"] == 2
+    assert public["error"] == {
+        "code": "OUTPUT_MODERATION_FAILED",
+        "category": "OUTPUT_MODERATION_FAILED",
+        "message": "生成的视频内容违规，请修改描述后重试~",
+        "outcome": "failed",
+        "refunded": False,
+    }
+
+
 def test_expired_cookie_recovers_with_saved_password(setup, monkeypatch):
     db, service, original = setup
     db.update_account(

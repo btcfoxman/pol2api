@@ -8,7 +8,6 @@ from typing import Any
 
 
 MESSAGES = {
-    "AGENT_OUTPUT_MISMATCH": "Agent 生成的视频与指定参数不符，请调整后重试~",
     "UPSTREAM_MAINTENANCE": "上游维护中，请稍后再试~",
     "QUEUE_INTERRUPTED": "队列排队服务中断，请稍后再试~",
     "MEDIA_DURATION_UNSUPPORTED": "素材时长不支持，请修改后再试~",
@@ -16,6 +15,12 @@ MESSAGES = {
     "MEDIA_FORMAT_UNSUPPORTED": "素材格式不支持，请修改后再试~",
     "MEDIA_DOWNLOAD_FAILED": "素材下载失败，请检查素材链接后重试~",
     "MEDIA_EXTERNAL_URL_REQUIRED": "素材仅支持外链，暂不支持文件流、Base64等~",
+}
+AGENT_FAILURE_CODES = {
+    "AGENT_OUTPUT_MISMATCH",
+    "AGENT_PARAMETERS_UNSUPPORTED",
+    "AGENT_TOOL_INVALID_PARAMS",
+    "AGENT_NO_VIDEO",
 }
 REFUND_MESSAGES = {
     "REAL_PERSON_DETECTED": "参考图片中检测到可能存在真人，暂不支持，请更换图片后重试，积分已返还~",
@@ -79,7 +84,9 @@ def classify_failure(code: str = "", message: str = "", *, stage: str = "") -> s
     code, message = raw_code.upper(), str(message or "").strip()
     if message in MESSAGE_VARIANTS:
         return MESSAGE_VARIANTS[message]
-    if code in MESSAGES or (code in REFUND_MESSAGES and code != "GENERATION_FAILED"):
+    if code in MESSAGES or code in AGENT_FAILURE_CODES or (
+        code in REFUND_MESSAGES and code != "GENERATION_FAILED"
+    ):
         return code
     if code == "3008":
         return "OUTPUT_MODERATION_FAILED"
@@ -287,12 +294,26 @@ def public_failure(task: dict[str, Any]) -> dict[str, Any]:
                 category = classify_failure(detail_code, failure_diagnostic(detail))
     refunded = refund_confirmed(task)
     code = task.get("error_code") or "GENERATION_FAILED"
+    terminal_generation_failure = code in {
+        "GENERATION_FAILED",
+        "AGENT_OUTPUT_MISMATCH",
+        "AGENT_PARAMETERS_UNSUPPORTED",
+        "AGENT_TOOL_INVALID_PARAMS",
+        "AGENT_NO_VIDEO",
+        "OUTPUT_MODERATION_FAILED",
+        "TEXT_MODERATION_FAILED",
+        "IMAGE_MODERATION_FAILED",
+        "VIDEO_MODERATION_FAILED",
+        "CONTENT_MODERATION_FAILED",
+        "REAL_PERSON_DETECTED",
+        "INPUT_IMAGE_REAL_PERSON",
+    } or (diagnostic.get("stage") == "generation" and bool(task.get("generation_id")))
     result = {
         "code": code,
         "category": category,
         "message": message_for(category, refunded, original),
         "outcome": "failed"
-        if code in {"GENERATION_FAILED", "AGENT_OUTPUT_MISMATCH"}
+        if terminal_generation_failure
         else "unknown"
         if task.get("generation_id") or code == "SUBMISSION_UNKNOWN"
         else "rejected",

@@ -95,7 +95,18 @@ def test_agent_output_mismatch_has_specific_public_failure():
     assert result["code"] == "AGENT_OUTPUT_MISMATCH"
     assert result["category"] == "AGENT_OUTPUT_MISMATCH"
     assert result["outcome"] == "failed"
-    assert "指定参数不符" in result["message"]
+    assert result["message"] == "生成失败，请重试~"
+
+
+@pytest.mark.parametrize(
+    "code",
+    ["AGENT_PARAMETERS_UNSUPPORTED", "AGENT_TOOL_INVALID_PARAMS", "AGENT_NO_VIDEO"],
+)
+def test_agent_categories_use_standard_caller_message(code):
+    result = public_failure({"error_code": code, "generation_id": "thread-test"})
+    assert result["category"] == code
+    assert result["message"] == "生成失败，请重试~"
+    assert result["refunded"] is False
 
 
 @pytest.mark.parametrize(

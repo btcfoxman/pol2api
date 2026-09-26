@@ -135,6 +135,8 @@ node --check app/static/app.js
 
 任务失败返回 `error.code`（诊断码）、`error.category`（归一化分类）、`error.message`、`error.outcome` 和 `error.refunded`。控制台与三种查询接口使用相同提示。上传签名、存储上传或上传确认被拒绝时，保留具体审核原因；没有审核原因的上传拒绝归类为 `UPSTREAM_MAINTENANCE`，返回 `上游维护中，请稍后再试~`，不会因此将有效账号标成登录失效。
 
+Agent 模式会按实际工具结构传入模型和已支持的声音选项，并在任务描述中明确时长、分辨率和比例。Agent 未交付视频时，服务从工具回执归类输出审核、模型参数组合不支持、工具参数格式错误等原因；调用者消息使用 `返回调用者归一化消息.txt` 的标准文案，具体原因保留在 `error.category`，只有确认收到退款凭据才显示“积分已返还”。对部署前已完成的 Agent 失败任务，可先运行 `python scripts/reclassify_agent_failures.py` 预览，再用 `--apply` 更新错误分类；该脚本只查询原任务，不重新生成或改动实际费用。
+
 内容审核区分文本、图片、视频、输出视频和通用内容，另有真人限制、队列中断、素材时长、数量/大小、格式及下载失败分类。提交前发现素材超限时返回 HTTP 422，响应同时提供 `detail` 和相同结构的 `error`。当前仍支持 data URL；仅当上游明确拒绝非外链素材时返回外链限制提示。
 
 含“积分已返还”的提示优先依据失败详情中的 `refundCreditDecimal`。已实测的版权输出审核 `failCode=3008` 与输入敏感审核 `3000` 会把数值退款字段留空，但明确返回 `Credits refunded.`；仅当单个输出、父记录均已失败且错误码/完整提示匹配已记录的上游响应时，接受该上游声明，并标记 `refund_source=upstream_failure_message`。数值回执标记为 `refundCreditDecimal`，明确的零/部分退款优先于文字。足额退款的净消耗为 0；账户余额始终从上游刷新，不依据提示重复加回。

@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+COPY scripts/reclassify_agent_failures.py ./scripts/reclassify_agent_failures.py
 COPY main.py README.md ./
 RUN mkdir -p /app/data
 EXPOSE 8798

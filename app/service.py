@@ -783,9 +783,16 @@ class PolService:
                             else float(self.db.get_task(task_id)["estimated_cost"])
                         )
                         failure_code = (
-                            "AGENT_OUTPUT_MISMATCH"
+                            detail.get("errorCode")
                             if agent_mode
-                            and detail.get("errorCode") == "AGENT_OUTPUT_MISMATCH"
+                            and detail.get("errorCode")
+                            in {
+                                "AGENT_OUTPUT_MISMATCH",
+                                "AGENT_PARAMETERS_UNSUPPORTED",
+                                "AGENT_TOOL_INVALID_PARAMS",
+                                "AGENT_NO_VIDEO",
+                                "OUTPUT_MODERATION_FAILED",
+                            }
                             else "GENERATION_FAILED"
                         )
                         if raw != "succeed":
