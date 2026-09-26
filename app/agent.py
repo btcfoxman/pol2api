@@ -26,23 +26,32 @@ def agent_prompt(payload):
         else f"本次最终恰好生成并交付 {count} 个视频"
     )
     resolution = str(payload["resolution"]).upper()
+    audio_enabled = bool(payload.get("generate_audio", True))
+    tool_rule = (
+        "调用 generate_video 工具时，每个 tasks 项必须显式传入"
+        f"model={payload['upstream_model']}、duration={payload['duration']}、"
+        f"resolution={payload['resolution']}、aspect_ratio={payload['aspect_ratio']}、"
+        f"options.generate_audio={'true' if audio_enabled else 'false'}；"
+        "这些值必须是真实工具参数，不能省略，也不能只写在描述里；"
+    )
+    if payload["aspect_ratio"] not in {"adaptive", "auto"}:
+        tool_rule += "不得用 adaptive、auto 或参考图比例代替指定的 aspect_ratio；"
     audio_rule = (
-        "调用视频生成工具时必须启用声音生成（generateAudio=true）；"
         "必须在生成视频时同步生成与画面内容匹配的声音，并将声音合成进最终视频；"
         "成片必须包含非静音的可听音轨（对白、环境音或音效按内容生成），不得输出无声视频；"
         "对白使用文中语言；"
-        if payload.get("generate_audio", True)
+        if audio_enabled
         else (
-            "调用视频生成工具时关闭声音生成（generateAudio=false）；"
             "本次按调用参数生成无声视频，不要添加声音或音轨；"
         )
     )
     rule = (
         f"强制指定 {model} 模型；{quantity}；"
         "不要额外生成候选版本；"
+        f"{tool_rule}"
         f"{audio_rule}"
         f"最终视频格式必须是 {payload['duration']}s、{resolution}、{payload['aspect_ratio']}。"
-        "不要自行更换模型或格式。"
+        "若工具不支持上述模型或参数，停止生成并说明不支持；不要自行更换模型或格式。"
     )
     original = str(payload.get("prompt") or "").rstrip()
     return original + "\n\n" + rule if original else rule

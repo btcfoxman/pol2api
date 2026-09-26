@@ -24,7 +24,13 @@ def test_agent_prompt_uses_normalized_video_parameters():
     assert "4s、480P、21:9" in prompt
     assert "对白使用文中语言" in prompt
     assert "同步生成与画面内容匹配的声音" in prompt
-    assert "generateAudio=true" in prompt
+    assert "model=seedance-2-0-mini" in prompt
+    assert "duration=4" in prompt
+    assert "resolution=480p" in prompt
+    assert "aspect_ratio=21:9" in prompt
+    assert "options.generate_audio=true" in prompt
+    assert "不能省略，也不能只写在描述里" in prompt
+    assert "不得用 adaptive、auto" in prompt
     assert "非静音的可听音轨" in prompt
     assert "不得输出无声视频" in prompt
 
@@ -32,8 +38,14 @@ def test_agent_prompt_uses_normalized_video_parameters():
 def test_agent_prompt_respects_explicit_silent_video_request():
     prompt = agent_prompt({**PAYLOAD, "generate_audio": False})
     assert "按调用参数生成无声视频" in prompt
-    assert "generateAudio=false" in prompt
+    assert "options.generate_audio=false" in prompt
     assert "非静音的可听音轨" not in prompt
+
+
+def test_agent_prompt_does_not_forbid_requested_adaptive_ratio():
+    prompt = agent_prompt({**PAYLOAD, "aspect_ratio": "adaptive"})
+    assert "aspect_ratio=adaptive" in prompt
+    assert "不得用 adaptive、auto" not in prompt
 
 
 def test_agent_prompt_allows_requested_multiple_outputs_without_conflicting_rule():

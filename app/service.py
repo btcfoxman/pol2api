@@ -931,7 +931,10 @@ class PolService:
             raise ValueError("只能重试失败或超时任务")
         if task.get("error_code") == "SUBMISSION_UNKNOWN":
             raise ValueError("提交结果未知，请先核对上游记录，不能直接重新提交")
-        if task.get("generation_id") and task.get("error_code") != "GENERATION_FAILED":
+        if task.get("generation_id") and task.get("error_code") not in {
+            "GENERATION_FAILED",
+            "AGENT_OUTPUT_MISMATCH",
+        }:
             self.db.update_task(
                 task_id,
                 status="submitted",

@@ -410,6 +410,32 @@ def test_retry_query_keeps_record_and_does_not_submit_or_charge_again(setup):
     assert db.get_account(a["id"])["last_balance"] == 2
 
 
+def test_agent_output_mismatch_retry_creates_new_task(setup, monkeypatch):
+    db, service, _ = setup
+    from app.model_catalog import normalize_generation_request
+
+    caller = request()
+    normal = normalize_generation_request(caller, service.settings)
+    normal["_submission_mode"] = "agent"
+    task = db.create_task("mismatched-agent", normal, caller_request=caller)
+    db.update_task(
+        task["id"],
+        status="failed",
+        generation_id="existing-thread",
+        error_code="AGENT_OUTPUT_MISMATCH",
+    )
+    created = []
+    monkeypatch.setattr(
+        service,
+        "create_task",
+        lambda payload: created.append(payload) or {"id": "new-task"},
+    )
+
+    assert service.retry_task(task["id"])["id"] == "new-task"
+    assert created == [caller]
+    assert db.get_task(task["id"])["generation_id"] == "existing-thread"
+
+
 @pytest.mark.parametrize(
     "failure_code,upstream_message,category,message",
     [
