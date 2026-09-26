@@ -135,6 +135,11 @@ def test_password_login_exchanges_csrf_for_session(monkeypatch):
         Settings(request_timeout_seconds=10),
     )
     calls = []
+    c.session.cookies.set("cf_clearance", "browser-clearance", domain="pollo.ai")
+    c.session.cookies.set("ZGV2aWNlSWQ_", "browser-device", domain="pollo.ai")
+    c.session.cookies.set(
+        "__Secure-next-auth.session-token", "stale-session", domain="pollo.ai"
+    )
 
     def get(url, **kwargs):
         calls.append(("GET", url, kwargs))
@@ -147,6 +152,9 @@ def test_password_login_exchanges_csrf_for_session(monkeypatch):
 
     def post(url, **kwargs):
         calls.append(("POST", url, kwargs))
+        assert c.session.cookies.get("cf_clearance") == "browser-clearance"
+        assert c.session.cookies.get("ZGV2aWNlSWQ_") == "browser-device"
+        assert c.session.cookies.get("__Secure-next-auth.session-token") is None
         c.session.cookies.set(
             "__Secure-next-auth.session-token", "new-session", domain="pollo.ai"
         )

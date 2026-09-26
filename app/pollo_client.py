@@ -105,7 +105,13 @@ class PolloClient:
         device_number = hashlib.sha256(
             (signature_seed + password + "xJ7fTJBgQ55/9r|").encode()
         ).hexdigest()
-        self.session.cookies.clear()
+        # Keep browser clearance and device cookies. Clearing the whole jar can
+        # make an otherwise valid browser account fail the credentials callback.
+        for cookie in list(self.session.cookies.jar):
+            if cookie.name.startswith("__Secure-next-auth.session-token"):
+                self.session.cookies.delete(
+                    cookie.name, domain=cookie.domain, path=cookie.path
+                )
         request_args = dict(
             proxy=self.proxy or None,
             timeout=self.settings.request_timeout_seconds,
