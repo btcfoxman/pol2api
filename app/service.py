@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 from pydantic import ValidationError
 
+from app.agent import agent_files, agent_prompt
 from app.cdp import read_session
 from app.config import normalize_proxy_url
 from app.db import now_ts
@@ -550,6 +551,9 @@ class PolService:
 
     def create_task(self, payload, *, caller_request=None):
         normal = normalize_generation_request(payload, self.settings)
+        normal["_submission_mode"] = (
+            "agent" if self.settings.agent_mode_enabled else "direct"
+        )
         with self._lock:
             if (
                 self.db.active_task_count()
@@ -605,6 +609,7 @@ class PolService:
         deadline = time.monotonic() + self.settings.task_timeout_seconds
         record_id = task.get("generation_id")
         payload = task["request"]
+        agent_mode = payload.get("_submission_mode") == "agent"
         excluded = set()
         audit = task.get("upstream_response") or {}
         try:
@@ -648,18 +653,32 @@ class PolService:
                     account = self.db.get_account(account["id"], include_secrets=True)
                     client.account = dict(account)
                 self.db.update_task(
-                    task_id, status="preparing", progress=10, channel="pollo"
+                    task_id,
+                    status="preparing",
+                    progress=10,
+                    channel="pollo_agent" if agent_mode else "pollo",
                 )
                 body, quote, cost = client.prepare(payload)
+                submit = (
+                    {
+                        "method": "POST",
+                        "path": "/api/agent-gateway/agent/v1/threads/{thread_id}/runs/stream",
+                        "body": {
+                            "content": agent_prompt(payload),
+                            "files": agent_files(body),
+                            "project_id": body["projectId"],
+                        },
+                    }
+                    if agent_mode
+                    else {
+                        "method": "POST",
+                        "path": "/api/trpc/recipe.submit?batch=1",
+                        "body": body,
+                    }
+                )
                 self.db.update_task(
                     task_id,
-                    upstream_request={
-                        "submit": {
-                            "method": "POST",
-                            "path": "/api/trpc/recipe.submit?batch=1",
-                            "body": body,
-                        }
-                    },
+                    upstream_request={"submit": submit},
                     upstream_response={"quote": quote},
                     estimated_cost=cost,
                     progress=30,
@@ -683,7 +702,11 @@ class PolService:
                         stage="submit",
                     )
                 self.db.update_task(task_id, status="submitting", progress=35)
-                generated = client.generate(body)
+                generated = (
+                    client.generate_agent(body, payload)
+                    if agent_mode
+                    else client.generate(body)
+                )
                 record_id = str(generated["id"])
                 audit["submit"] = generated
                 try:
@@ -701,7 +724,11 @@ class PolService:
             poll_errors = 0
             while time.monotonic() < deadline and not self._stop.is_set():
                 try:
-                    status = client.status(record_id)
+                    status = (
+                        client.agent_status(record_id, payload)
+                        if agent_mode
+                        else client.status(record_id)
+                    )
                     poll_errors = 0
                     raw = str(status.get("status") or "")
                     audit["poll"] = status
@@ -720,7 +747,11 @@ class PolService:
                         "cancelled",
                         "canceled",
                     ):
-                        detail = client.detail(record_id)
+                        detail = (
+                            client.agent_detail(record_id, payload)
+                            if agent_mode
+                            else client.detail(record_id)
+                        )
                         audit["detail"] = detail
                         urls = result_urls(detail)
                         if raw == "succeed" and not urls:
@@ -742,6 +773,12 @@ class PolService:
                             if charged is not None
                             else float(self.db.get_task(task_id)["estimated_cost"])
                         )
+                        failure_code = (
+                            "AGENT_OUTPUT_MISMATCH"
+                            if agent_mode
+                            and detail.get("errorCode") == "AGENT_OUTPUT_MISMATCH"
+                            else "GENERATION_FAILED"
+                        )
                         if raw != "succeed":
                             audit["failure"] = {
                                 "stage": "generation",
@@ -751,7 +788,7 @@ class PolService:
                             receipt = refund_receipt(
                                 {
                                     **self.db.get_task(task_id),
-                                    "error_code": "GENERATION_FAILED",
+                                    "error_code": failure_code,
                                     "upstream_response": audit,
                                 }
                             )
@@ -762,7 +799,7 @@ class PolService:
                             public_failure(
                                 {
                                     **self.db.get_task(task_id),
-                                    "error_code": "GENERATION_FAILED",
+                                    "error_code": failure_code,
                                     "upstream_response": audit,
                                 }
                             )
@@ -781,7 +818,7 @@ class PolService:
                             upstream_response=audit,
                             actual_cost=cost,
                             completed_at=now_ts(),
-                            error_code="" if raw == "succeed" else "GENERATION_FAILED",
+                            error_code="" if raw == "succeed" else failure_code,
                             error_message=""
                             if raw == "succeed"
                             else failure["message"],

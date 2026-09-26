@@ -38,6 +38,7 @@ class Settings:
     media_timeout_seconds: int = 180
     media_max_bytes: int = 209715200
     browser_recovery_enabled: bool = True
+    agent_mode_enabled: bool = False
     proxy_host_override: str = ""
     proxy_pool_enabled: bool = False
     proxy_pool: str = ""

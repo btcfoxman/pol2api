@@ -66,6 +66,7 @@ class SettingsPatch(BaseModel):
     proxy_pool: str | None = None
     proxy_pool_enabled: bool | None = None
     browser_recovery_enabled: bool | None = None
+    agent_mode_enabled: bool | None = None
     excess_media_policy: Literal["strict", "ignore"] | None = None
     allow_video_reference_inputs: bool | None = None
     prompt_media_reference_cleanup_enabled: bool | None = None

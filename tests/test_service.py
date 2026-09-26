@@ -108,6 +108,52 @@ def test_password_import_can_log_in_and_activate(setup):
     assert account["password"] == "fake-secret"
 
 
+def test_agent_mode_submits_and_returns_video_via_existing_task_api(setup, monkeypatch):
+    db, service, _ = setup
+    service.settings.agent_mode_enabled = True
+    thread_id = "11111111-2222-3333-4444-555555555555"
+
+    def prepare(client, payload):
+        return (
+            {"projectId": "project", "userInput": {}, "modelKey": payload["upstream_model"]},
+            {"discountCost": 12},
+            12,
+        )
+
+    def generate_agent(client, body, payload):
+        assert "projectId" in body
+        assert payload["_submission_mode"] == "agent"
+        return {"id": thread_id}
+
+    def agent_status(client, record_id, payload):
+        assert record_id == thread_id
+        return {"id": record_id, "status": "succeed"}
+
+    def agent_detail(client, record_id, payload):
+        return {
+            "status": "succeed",
+            "generateRecord": {"creditDecimal": 10},
+            "generations": [{"videoUrlNoWatermark": "https://example.com/clean.mp4"}],
+        }
+
+    monkeypatch.setattr(FakeClient, "prepare", prepare)
+    monkeypatch.setattr(FakeClient, "generate_agent", generate_agent, raising=False)
+    monkeypatch.setattr(FakeClient, "agent_status", agent_status, raising=False)
+    monkeypatch.setattr(FakeClient, "agent_detail", agent_detail, raising=False)
+    monkeypatch.setattr(
+        FakeClient,
+        "downloads",
+        lambda client, detail: [{"url": detail["generations"][0]["videoUrlNoWatermark"]}],
+    )
+    task = service.create_task(request())
+    done = service.wait_task(task["id"], 5)
+    assert done["status"] == "succeeded"
+    assert done["generation_id"] == thread_id
+    assert done["actual_cost"] == 10
+    assert done["result_urls"] == ["https://example.com/clean.mp4"]
+    assert done["channel"] == "pollo_agent"
+
+
 def test_expired_cookie_recovers_with_saved_password(setup, monkeypatch):
     db, service, original = setup
     db.update_account(

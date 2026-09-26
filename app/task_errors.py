@@ -8,6 +8,7 @@ from typing import Any
 
 
 MESSAGES = {
+    "AGENT_OUTPUT_MISMATCH": "Agent 生成的视频与指定参数不符，请调整后重试~",
     "UPSTREAM_MAINTENANCE": "上游维护中，请稍后再试~",
     "QUEUE_INTERRUPTED": "队列排队服务中断，请稍后再试~",
     "MEDIA_DURATION_UNSUPPORTED": "素材时长不支持，请修改后再试~",
@@ -291,7 +292,7 @@ def public_failure(task: dict[str, Any]) -> dict[str, Any]:
         "category": category,
         "message": message_for(category, refunded, original),
         "outcome": "failed"
-        if code == "GENERATION_FAILED"
+        if code in {"GENERATION_FAILED", "AGENT_OUTPUT_MISMATCH"}
         else "unknown"
         if task.get("generation_id") or code == "SUBMISSION_UNKNOWN"
         else "rejected",

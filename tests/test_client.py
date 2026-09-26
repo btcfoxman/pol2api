@@ -76,6 +76,81 @@ def test_missing_submit_id_is_ambiguous(monkeypatch):
     c.close()
 
 
+def test_agent_submit_matches_browser_gateway_contract(monkeypatch):
+    c = client()
+    calls = []
+    closed = []
+
+    def agent_data(method, path, *, payload=None):
+        assert method == "POST"
+        assert path == "/api/agent-gateway/agent/v1/threads"
+        assert payload["metadata"]["project_id"] == "project-test"
+        return {"thread_id": "thread-test"}
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        return SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "text/event-stream; charset=utf-8"},
+            close=lambda: closed.append(True),
+        )
+
+    monkeypatch.setattr(c, "_agent_data", agent_data)
+    monkeypatch.setattr(c.session, "post", post)
+    body = {
+        "projectId": "project-test",
+        "userInput": {
+            "refs": [{"type": "image", "image": "https://cdn.example/ref.png"}]
+        },
+    }
+    payload = {
+        "prompt": "a scene",
+        "upstream_model": "seedance-2-0-mini",
+        "duration": 4,
+        "resolution": "480p",
+        "aspect_ratio": "21:9",
+        "n": 1,
+    }
+    assert c.generate_agent(body, payload)["id"] == "thread-test"
+    assert len(calls) == 1 and closed == [True]
+    url, kwargs = calls[0]
+    assert url.endswith("/threads/thread-test/runs/stream")
+    assert kwargs["stream"] is True
+    request = kwargs["json"]
+    assert request["config"]["configurable"] == {
+        "mode": "fast",
+        "plan_mode": "autopilot",
+    }
+    assert request["assistant_id"] == "lead_agent"
+    assert request["on_disconnect"] == "continue"
+    assert request["metadata"]["idempotency_key"] == request["input"]["messages"][0]["id"]
+    assert request["input"]["messages"][0]["additional_kwargs"]["files"][0]["ref"] == "Image 1"
+    assert "4s、480P、21:9" in request["input"]["messages"][0]["content"]
+    c.close()
+
+
+def test_agent_background_interrupt_remains_processing(monkeypatch):
+    c = client()
+    thread_id = "thread-test"
+    payload = {"upstream_model": "seedance-2-0-mini"}
+
+    def agent_data(method, path, *, payload=None):
+        assert path.endswith("/threads/status")
+        return {
+            "threads": [
+                {
+                    "thread_id": thread_id,
+                    "status": "interrupted",
+                    "metadata": {"interrupt": {"class": "background"}},
+                }
+            ]
+        }
+
+    monkeypatch.setattr(c, "_agent_data", agent_data)
+    assert c.agent_status(thread_id, payload)["status"] == "processing"
+    c.close()
+
+
 @pytest.mark.parametrize("status", [408, 425, 500, 503])
 def test_http_submit_uncertainty_never_becomes_safe_rejection(monkeypatch, status):
     from unittest.mock import Mock

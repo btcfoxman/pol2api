@@ -96,6 +96,26 @@ def test_wan_alias_submission_and_query_adapters(api, route, model):
 
 def test_admin_settings_sync_and_task_defaults(api):
     c, db = api
+    assert c.post("/login", data={"token": "admin-key"}).status_code == 200
+    assert c.get("/api/settings").json()["agent_mode_enabled"] is False
+    assert c.patch("/api/settings", json={"agent_mode_enabled": True}).json()[
+        "agent_mode_enabled"
+    ] is True
+    result = c.post(
+        "/v1/videos",
+        headers={"X-API-Key": "api-key"},
+        json={
+            "model": "sd-2-0-mini",
+            "prompt": "scene",
+            "duration": 4,
+            "image_urls": ["https://example.com/a.png"],
+        },
+    )
+    assert result.status_code == 200
+    assert db.get_task(result.json()["id"])["request"]["_submission_mode"] == "agent"
+    assert c.patch("/api/settings", json={"agent_mode_enabled": False}).json()[
+        "agent_mode_enabled"
+    ] is False
     assert (
         c.post(
             "/api/accounts/sync", json={"name": "a"}, headers={"X-API-Key": "bad"}

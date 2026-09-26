@@ -11,6 +11,7 @@ import socket
 import subprocess
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, unquote_to_bytes
 
@@ -19,6 +20,7 @@ from PIL import Image
 import requests
 
 from app.config import rewrite_loopback_proxy
+from app.agent import agent_files, agent_prompt, agent_video_detail
 from app.recipes import input_values, media_rules
 from app.task_errors import classify_failure
 
@@ -715,6 +717,132 @@ class PolloClient:
         if not isinstance(result, dict) or not result.get("id"):
             raise SubmissionUnknown()
         return result
+
+    def _agent_data(self, method, path, *, payload=None):
+        response = self._request(method, path, payload=payload)
+        if not isinstance(response, dict) or response.get("code") != 200:
+            message = response.get("msg") if isinstance(response, dict) else None
+            raise UpstreamError(str(message or "Agent 响应无效"), "AGENT_ERROR")
+        data = response.get("data")
+        if not isinstance(data, dict):
+            raise UpstreamError("Agent 响应缺少数据", "INVALID_RESPONSE")
+        return data
+
+    def generate_agent(self, body, payload):
+        project = body.get("projectId")
+        if not project:
+            raise UpstreamError("账号没有可用项目", "PROJECT_REQUIRED", 422)
+        created = self._agent_data(
+            "POST",
+            "/api/agent-gateway/agent/v1/threads",
+            payload={
+                "metadata": {
+                    "idempotency_key": str(uuid.uuid4()),
+                    "project_id": project,
+                }
+            },
+        )
+        thread_id = created.get("thread_id")
+        if not isinstance(thread_id, str) or not thread_id:
+            raise UpstreamError("Agent 未返回会话 ID", "INVALID_RESPONSE")
+        message_id = str(uuid.uuid4())
+        request = {
+            "input": {
+                "messages": [
+                    {
+                        "id": message_id,
+                        "type": "human",
+                        "content": agent_prompt(payload),
+                        "additional_kwargs": {
+                            "startTime": int(time.time() * 1000),
+                            "files": agent_files(body),
+                        },
+                    }
+                ]
+            },
+            "config": {"configurable": {"mode": "fast", "plan_mode": "autopilot"}},
+            "metadata": {"idempotency_key": message_id, "project_id": project},
+            "stream_mode": ["messages-tuple", "values", "custom"],
+            "stream_subgraphs": True,
+            "stream_resumable": True,
+            "assistant_id": "lead_agent",
+            "on_disconnect": "continue",
+        }
+        headers = {
+            "Accept": "text/event-stream",
+            "Content-Type": "application/json",
+            "Origin": self.base,
+            "Referer": self.base + "/agent",
+        }
+        if self.account.get("user_agent"):
+            headers["User-Agent"] = self.account["user_agent"]
+        try:
+            response = self.session.post(
+                self.base
+                + "/api/agent-gateway/agent/v1/threads/"
+                + thread_id
+                + "/runs/stream",
+                json=request,
+                headers=headers,
+                proxy=self.proxy or None,
+                timeout=self.settings.request_timeout_seconds,
+                allow_redirects=False,
+                stream=True,
+            )
+        except Exception as exc:
+            # A timed out POST may already be running. Never replay it.
+            raise SubmissionUnknown() from exc
+        try:
+            if response.status_code in (401, 403):
+                raise UpstreamError("Agent 会话失效或需要浏览器验证", "AUTH_REQUIRED", 401)
+            if response.status_code == 429:
+                raise UpstreamError("Agent 请求过于频繁", "RATE_LIMITED", 429)
+            if response.status_code != 200:
+                raise UpstreamError(
+                    f"Agent 提交被拒绝（HTTP {response.status_code}）",
+                    "UPSTREAM_HTTP_ERROR",
+                    response.status_code,
+                    stage="submit",
+                )
+            if "text/event-stream" not in response.headers.get("content-type", ""):
+                raise SubmissionUnknown()
+        finally:
+            response.close()
+        return {"id": thread_id}
+
+    def agent_status(self, thread_id, payload):
+        data = self._agent_data(
+            "POST",
+            "/api/agent-gateway/agent/v1/threads/status",
+            payload={"thread_ids": [thread_id]},
+        )
+        thread = next(
+            (item for item in data.get("threads") or [] if item.get("thread_id") == thread_id),
+            None,
+        )
+        if not thread:
+            raise UpstreamError("Agent 任务未找到", "TASK_NOT_FOUND")
+        state = thread.get("status")
+        if state == "idle":
+            status = self.agent_detail(thread_id, payload)["status"]
+        elif state == "interrupted":
+            interrupt = (thread.get("metadata") or {}).get("interrupt") or {}
+            status = "processing" if interrupt.get("class") == "background" else "failed"
+        elif state in {"busy", "pending", "running"}:
+            status = "processing"
+        else:
+            status = "failed"
+        return {"id": thread_id, "status": status, "threadStatus": state}
+
+    def agent_detail(self, thread_id, payload):
+        base = "/api/agent-gateway/agent/v1/threads/" + thread_id
+        artifacts = self._agent_data("POST", base + "/artifacts", payload={})
+        conversation = self._agent_data(
+            "POST", base + "/conversation", payload={"limit": 100}
+        )
+        return agent_video_detail(
+            artifacts, conversation.get("messages") or [], payload
+        )
 
     def status(self, record_id):
         records = self.rpc(

@@ -79,6 +79,25 @@ def test_structured_camel_case_code_is_not_lost():
     )
 
 
+def test_agent_output_mismatch_has_specific_public_failure():
+    result = public_failure(
+        {
+            "error_code": "AGENT_OUTPUT_MISMATCH",
+            "generation_id": "thread-test",
+            "upstream_response": {
+                "failure": {
+                    "stage": "generation",
+                    "message": "Agent 输出与请求不一致：比例 3:4",
+                }
+            },
+        }
+    )
+    assert result["code"] == "AGENT_OUTPUT_MISMATCH"
+    assert result["category"] == "AGENT_OUTPUT_MISMATCH"
+    assert result["outcome"] == "failed"
+    assert "指定参数不符" in result["message"]
+
+
 @pytest.mark.parametrize(
     "code", ["TOO_MANY_REQUESTS", "ACCOUNT_RESTRICTED", "NO_ACCOUNT", "QUEUE_FULL"]
 )
