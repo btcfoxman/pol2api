@@ -111,6 +111,10 @@ def test_password_import_can_log_in_and_activate(setup):
 def test_agent_mode_submits_and_returns_video_via_existing_task_api(setup, monkeypatch):
     db, service, _ = setup
     service.settings.agent_mode_enabled = True
+    account = db.list_accounts()[0]
+    db.update_account(
+        account["id"], {"status": "generation_restricted", "enabled": True}
+    )
     thread_id = "11111111-2222-3333-4444-555555555555"
 
     def prepare(client, payload):
@@ -152,6 +156,7 @@ def test_agent_mode_submits_and_returns_video_via_existing_task_api(setup, monke
     assert done["actual_cost"] == 10
     assert done["result_urls"] == ["https://example.com/clean.mp4"]
     assert done["channel"] == "pollo_agent"
+    assert db.get_account(account["id"])["status"] == "generation_restricted"
 
 
 def test_expired_cookie_recovers_with_saved_password(setup, monkeypatch):

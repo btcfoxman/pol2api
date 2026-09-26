@@ -915,6 +915,7 @@ class Database:
         task_id: str | None = None,
         recovering: bool = False,
         reservation_cost: float = 0,
+        allow_generation_restricted: bool = False,
     ) -> dict[str, Any] | None:
         if quota_mode == "video_only" and kind != "video":
             return None
@@ -958,8 +959,13 @@ class Database:
                     connection.commit()
                     return self.get_account(int(account_id), include_secrets=True)
             parameters: list[Any] = []
+            allowed_statuses = (
+                "('active', 'pending', 'generation_restricted')"
+                if allow_generation_restricted
+                else "('active', 'pending')"
+            )
             eligibility_clause = (
-                "candidate.enabled = 1 AND candidate.status IN ('active', 'pending')"
+                f"candidate.enabled = 1 AND candidate.status IN {allowed_statuses}"
             )
             if recovering and preferred_id is not None:
                 eligibility_clause = f"(({eligibility_clause}) OR candidate.id = ?)"

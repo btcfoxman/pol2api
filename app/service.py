@@ -624,13 +624,19 @@ class PolService:
                     recovering=bool(record_id),
                     exclude_ids=excluded,
                     kind="video",
+                    allow_generation_restricted=agent_mode,
                 )
                 if not account:
                     candidates = [
                         a
                         for a in self.db.list_accounts()
                         if a["enabled"]
-                        and a["status"] in ("active", "pending")
+                        and a["status"]
+                        in (
+                            ("active", "pending", "generation_restricted")
+                            if agent_mode
+                            else ("active", "pending")
+                        )
                         and a["id"] not in excluded
                         and (
                             not payload.get("account_id")
@@ -694,7 +700,10 @@ class PolService:
                 if self._stop.is_set():
                     return
                 fresh = self.db.get_account(account["id"])
-                if fresh and fresh["status"] == "generation_restricted":
+                if fresh and (
+                    not fresh["enabled"]
+                    or (fresh["status"] == "generation_restricted" and not agent_mode)
+                ):
                     raise UpstreamError(
                         "上游已限制此账号的生成权限",
                         "ACCOUNT_RESTRICTED",
