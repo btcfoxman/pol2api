@@ -34,11 +34,42 @@ class UpstreamError(RuntimeError):
 
 
 class SubmissionUnknown(UpstreamError):
-    def __init__(self, thread_id=""):
+    def __init__(self, thread_id="", *, http_status=None, response_type="",
+                 transport_error_type=""):
+        diagnostic = (f"HTTP {http_status}" if http_status else transport_error_type)
+        if response_type:
+            diagnostic = f"{diagnostic}; {response_type}" if diagnostic else response_type
         super().__init__(
-            "提交结果未知；请先核对上游记录，系统不会自动重复提交", "SUBMISSION_UNKNOWN", stage="submit"
+            "提交结果未知；请先核对上游记录，系统不会自动重复提交"
+            + (f" ({diagnostic})" if diagnostic else ""),
+            "SUBMISSION_UNKNOWN", stage="submit"
         )
         self.thread_id = thread_id
+        self.http_status = http_status
+        self.response_type = response_type
+        self.transport_error_type = transport_error_type
+
+
+class AgentSubmissionRejected(UpstreamError):
+    """The created thread stayed idle and empty through read-only reconciliation."""
+
+    def __init__(self, thread_id, *, http_status=None, response_type="",
+                 transport_error_type=""):
+        diagnostic = (f"HTTP {http_status}" if http_status else transport_error_type)
+        if response_type:
+            diagnostic = f"{diagnostic}; {response_type}" if diagnostic else response_type
+        super().__init__("Agent 请求未被上游接收；会话持续空闲且无消息或产物"
+                         + (f" ({diagnostic})" if diagnostic else ""),
+                         "AGENT_SUBMIT_NOT_ACCEPTED", 502, stage="submit")
+        self.thread_id = thread_id
+        self.http_status = http_status
+        self.response_type = response_type
+        self.transport_error_type = transport_error_type
+
+
+# A delayed run can appear after a failed stream response. Probe the existing
+# thread for one minute before declaring that the run was never accepted.
+AGENT_SUBMISSION_RECHECK_DELAYS = (0, 10, 20, 30)
 
 
 def public_media_url(url):
@@ -730,8 +761,8 @@ class PolloClient:
             raise UpstreamError("Agent 响应缺少数据", "INVALID_RESPONSE")
         return data
 
-    def _agent_run_started(self, thread_id, message_id):
-        """Look for evidence of an accepted run without replaying its POST."""
+    def _agent_submission_state(self, thread_id, message_id):
+        """Return started, empty, or unknown using only the existing thread."""
         try:
             data = self._agent_data(
                 "POST", "/api/agent-gateway/agent/v1/threads/status",
@@ -741,20 +772,52 @@ class PolloClient:
                 (item for item in data.get("threads") or []
                  if isinstance(item, dict) and item.get("thread_id") == thread_id), None,
             )
-            if thread and thread.get("status") in {"busy", "pending", "running"}:
-                return True
+            if not thread:
+                return "unknown"
+            if thread.get("status") in {"busy", "pending", "running", "interrupted"}:
+                return "started"
             conversation = self._agent_data(
                 "POST", f"/api/agent-gateway/agent/v1/threads/{thread_id}/conversation",
                 payload={"limit": 20}, timeout=10,
             )
-            return any(
-                isinstance(item, dict)
-                and (item.get("id") == message_id
-                     or item.get("type") in {"human", "user"})
-                for item in conversation.get("messages") or []
+            messages = conversation.get("messages") or []
+            if not isinstance(messages, list):
+                return "unknown"
+            if any(isinstance(item, dict) and
+                   (item.get("id") == message_id or item.get("type") in {"human", "user"})
+                   for item in messages):
+                return "started"
+            artifacts = self._agent_data(
+                "POST", f"/api/agent-gateway/agent/v1/threads/{thread_id}/artifacts",
+                payload={}, timeout=10,
             )
+            if artifacts.get("artifact_groups"):
+                return "started"
+            if messages:
+                return "unknown"
+            return "empty" if thread.get("status") == "idle" else "unknown"
         except UpstreamError:
-            return False
+            return "unknown"
+
+    def _reconcile_agent_submission(self, thread_id, message_id, *, http_status=None,
+                                    response_type="", transport_error_type=""):
+        """Never replay the paid run POST; establish its outcome by polling."""
+        all_empty = True
+        for delay in AGENT_SUBMISSION_RECHECK_DELAYS:
+            if delay:
+                time.sleep(delay)
+            state = self._agent_submission_state(thread_id, message_id)
+            if state == "started":
+                return {"id": thread_id, "submission_recovered": True}
+            if state != "empty":
+                all_empty = False
+        if all_empty:
+            raise AgentSubmissionRejected(thread_id, http_status=http_status,
+                                          response_type=response_type,
+                                          transport_error_type=transport_error_type)
+        raise SubmissionUnknown(thread_id, http_status=http_status,
+                                response_type=response_type,
+                                transport_error_type=transport_error_type)
 
     def generate_agent(self, body, payload):
         project = body.get("projectId")
@@ -821,19 +884,20 @@ class PolloClient:
             )
         except Exception as exc:
             # A timed out POST may already be running. Never replay it.
-            if self._agent_run_started(thread_id, message_id):
-                return {"id": thread_id, "submission_recovered": True}
-            raise SubmissionUnknown(thread_id) from exc
+            return self._reconcile_agent_submission(
+                thread_id, message_id, transport_error_type=type(exc).__name__)
         try:
             if response.status_code in (401, 403):
                 raise UpstreamError("Agent 会话失效或需要浏览器验证", "AUTH_REQUIRED", 401)
             if response.status_code == 429:
                 raise UpstreamError("Agent 请求过于频繁", "RATE_LIMITED", 429)
             if response.status_code in (408, 425) or response.status_code >= 500:
+                status = response.status_code
+                response_type = response.headers.get("content-type", "").split(";", 1)[0][:80]
                 response.close()
-                if self._agent_run_started(thread_id, message_id):
-                    return {"id": thread_id, "submission_recovered": True}
-                raise SubmissionUnknown(thread_id)
+                return self._reconcile_agent_submission(thread_id, message_id,
+                                                        http_status=status,
+                                                        response_type=response_type)
             if response.status_code != 200:
                 raise UpstreamError(
                     f"Agent 提交被拒绝（HTTP {response.status_code}）",
@@ -842,10 +906,12 @@ class PolloClient:
                     stage="submit",
                 )
             if "text/event-stream" not in response.headers.get("content-type", ""):
+                status = response.status_code
+                response_type = response.headers.get("content-type", "").split(";", 1)[0][:80]
                 response.close()
-                if self._agent_run_started(thread_id, message_id):
-                    return {"id": thread_id, "submission_recovered": True}
-                raise SubmissionUnknown(thread_id)
+                return self._reconcile_agent_submission(thread_id, message_id,
+                                                        http_status=status,
+                                                        response_type=response_type)
         finally:
             response.close()
         return {"id": thread_id}

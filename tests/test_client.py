@@ -2,8 +2,10 @@ import json
 from types import SimpleNamespace
 import pytest
 from app.config import Settings
-from app.pollo_client import PolloClient, SubmissionUnknown, UpstreamError, result_urls
+from app.pollo_client import (AgentSubmissionRejected, PolloClient,
+                              SubmissionUnknown, UpstreamError, result_urls)
 from app.model_catalog import MODELS, normalize_generation_request
+from app.task_errors import public_failure
 
 
 def client():
@@ -162,12 +164,15 @@ def test_agent_stream_timeout_recovers_only_when_upstream_run_started(monkeypatc
 def test_agent_stream_timeout_keeps_thread_id_when_acceptance_unknown(monkeypatch):
     c = client()
     c.on_agent_thread_created = lambda thread_id: None
+    monkeypatch.setattr("app.pollo_client.AGENT_SUBMISSION_RECHECK_DELAYS", (0,))
 
     def agent_data(method, path, *, payload=None, timeout=None):
         if path.endswith("/threads"):
             return {"thread_id": "thread-test"}
         if path.endswith("/threads/status"):
             return {"threads": [{"thread_id": "thread-test", "status": "idle"}]}
+        if path.endswith("/artifacts"):
+            raise UpstreamError("inspection unavailable", "NETWORK_ERROR")
         return {"messages": []}
 
     monkeypatch.setattr(c, "_agent_data", agent_data)
@@ -178,6 +183,73 @@ def test_agent_stream_timeout_keeps_thread_id_when_acceptance_unknown(monkeypatc
                           "duration": 4, "resolution": "480p", "aspect_ratio": "1:1", "n": 1})
     assert error.value.thread_id == "thread-test"
     assert error.value.stage == "submit"
+    c.close()
+
+
+def test_agent_stream_failure_fails_over_only_after_empty_thread_proof(monkeypatch):
+    c = client()
+    calls = []
+    monkeypatch.setattr("app.pollo_client.AGENT_SUBMISSION_RECHECK_DELAYS", (0, 0, 0))
+
+    def agent_data(method, path, *, payload=None, timeout=None):
+        calls.append(path)
+        if path.endswith("/threads"):
+            return {"thread_id": "thread-test"}
+        if path.endswith("/threads/status"):
+            return {"threads": [{"thread_id": "thread-test", "status": "idle"}]}
+        if path.endswith("/conversation"):
+            return {"messages": []}
+        if path.endswith("/artifacts"):
+            return {"artifact_groups": {}}
+        raise AssertionError(path)
+
+    def failed_post(url, **kwargs):
+        calls.append("stream_post")
+        return SimpleNamespace(status_code=503, headers={"content-type": "application/json"},
+                               close=lambda: None)
+
+    monkeypatch.setattr(c, "_agent_data", agent_data)
+    monkeypatch.setattr(c.session, "post", failed_post)
+    with pytest.raises(AgentSubmissionRejected) as error:
+        c.generate_agent({"projectId": "project-test", "userInput": {}},
+                         {"prompt": "scene", "upstream_model": "seedance-2-0-mini",
+                          "duration": 4, "resolution": "480p", "aspect_ratio": "1:1", "n": 1})
+    assert error.value.http_status == 503
+    assert public_failure({"error_code": error.value.code,
+                           "error_message": str(error.value)})["outcome"] == "rejected"
+    assert calls.count("stream_post") == 1
+    assert calls.count("/api/agent-gateway/agent/v1/threads/status") == 3
+    c.close()
+
+
+def test_agent_stream_failure_recovers_delayed_run_without_resubmitting(monkeypatch):
+    c = client()
+    states = iter(("idle", "running"))
+    posts = []
+    monkeypatch.setattr("app.pollo_client.AGENT_SUBMISSION_RECHECK_DELAYS", (0, 0, 0))
+
+    def agent_data(method, path, *, payload=None, timeout=None):
+        if path.endswith("/threads"):
+            return {"thread_id": "thread-test"}
+        if path.endswith("/threads/status"):
+            return {"threads": [{"thread_id": "thread-test", "status": next(states)}]}
+        if path.endswith("/conversation"):
+            return {"messages": []}
+        if path.endswith("/artifacts"):
+            return {"artifact_groups": {}}
+        raise AssertionError(path)
+
+    def failed_post(url, **kwargs):
+        posts.append(url)
+        raise TimeoutError("headers were lost")
+
+    monkeypatch.setattr(c, "_agent_data", agent_data)
+    monkeypatch.setattr(c.session, "post", failed_post)
+    result = c.generate_agent({"projectId": "project-test", "userInput": {}},
+                              {"prompt": "scene", "upstream_model": "seedance-2-0-mini",
+                               "duration": 4, "resolution": "480p", "aspect_ratio": "1:1", "n": 1})
+    assert result == {"id": "thread-test", "submission_recovered": True}
+    assert len(posts) == 1
     c.close()
 
 

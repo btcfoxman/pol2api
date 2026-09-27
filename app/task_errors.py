@@ -168,6 +168,7 @@ def classify_failure(code: str = "", message: str = "", *, stage: str = "") -> s
             "UPLOAD_FAILED",
             "UPLOAD_REJECTED",
             "UPSTREAM_HTTP_ERROR",
+            "AGENT_SUBMIT_NOT_ACCEPTED",
             "RATE_LIMITED",
             "NETWORK_ERROR",
             "AUTH_REQUIRED",
