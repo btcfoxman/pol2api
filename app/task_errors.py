@@ -8,6 +8,7 @@ from typing import Any
 
 
 MESSAGES = {
+    "SUBMISSION_UNKNOWN": "提交结果未确认，请核对上游任务，暂勿重复提交~",
     "UPSTREAM_MAINTENANCE": "上游维护中，请稍后再试~",
     "QUEUE_INTERRUPTED": "队列排队服务中断，请稍后再试~",
     "MEDIA_DURATION_UNSUPPORTED": "素材时长不支持，请修改后再试~",
@@ -84,7 +85,7 @@ def classify_failure(code: str = "", message: str = "", *, stage: str = "") -> s
     code, message = raw_code.upper(), str(message or "").strip()
     if message in MESSAGE_VARIANTS:
         return MESSAGE_VARIANTS[message]
-    if code in MESSAGES or code in AGENT_FAILURE_CODES or (
+    if (code in MESSAGES and code != "SUBMISSION_UNKNOWN") or code in AGENT_FAILURE_CODES or (
         code in REFUND_MESSAGES and code != "GENERATION_FAILED"
     ):
         return code
@@ -182,7 +183,7 @@ def classify_failure(code: str = "", message: str = "", *, stage: str = "") -> s
         or (stage.startswith("upload") and code not in {"MEDIA_DOWNLOAD_FAILED"})
     ):
         return "UPSTREAM_MAINTENANCE"
-    return "GENERATION_FAILED"
+    return "SUBMISSION_UNKNOWN" if code == "SUBMISSION_UNKNOWN" else "GENERATION_FAILED"
 
 
 def failure_diagnostic(detail: Any) -> str:

@@ -129,6 +129,58 @@ def test_agent_submit_matches_browser_gateway_contract(monkeypatch):
     c.close()
 
 
+def test_agent_stream_timeout_recovers_only_when_upstream_run_started(monkeypatch):
+    c = client()
+    remembered = []
+    c.on_agent_thread_created = remembered.append
+    calls = []
+
+    def agent_data(method, path, *, payload=None, timeout=None):
+        calls.append(path)
+        if path.endswith("/threads"):
+            return {"thread_id": "thread-test"}
+        if path.endswith("/threads/status"):
+            return {"threads": [{"thread_id": "thread-test", "status": "running"}]}
+        raise AssertionError(path)
+
+    def timeout_post(url, **kwargs):
+        assert kwargs["timeout"] >= 120
+        raise TimeoutError("stream headers timed out")
+
+    monkeypatch.setattr(c, "_agent_data", agent_data)
+    monkeypatch.setattr(c.session, "post", timeout_post)
+    result = c.generate_agent({"projectId": "project-test", "userInput": {}},
+                              {"prompt": "scene", "upstream_model": "seedance-2-0-mini",
+                               "duration": 4, "resolution": "480p", "aspect_ratio": "1:1", "n": 1})
+    assert result == {"id": "thread-test", "submission_recovered": True}
+    assert remembered == ["thread-test"]
+    assert calls == ["/api/agent-gateway/agent/v1/threads",
+                     "/api/agent-gateway/agent/v1/threads/status"]
+    c.close()
+
+
+def test_agent_stream_timeout_keeps_thread_id_when_acceptance_unknown(monkeypatch):
+    c = client()
+    c.on_agent_thread_created = lambda thread_id: None
+
+    def agent_data(method, path, *, payload=None, timeout=None):
+        if path.endswith("/threads"):
+            return {"thread_id": "thread-test"}
+        if path.endswith("/threads/status"):
+            return {"threads": [{"thread_id": "thread-test", "status": "idle"}]}
+        return {"messages": []}
+
+    monkeypatch.setattr(c, "_agent_data", agent_data)
+    monkeypatch.setattr(c.session, "post", lambda *a, **k: (_ for _ in ()).throw(TimeoutError()))
+    with pytest.raises(SubmissionUnknown) as error:
+        c.generate_agent({"projectId": "project-test", "userInput": {}},
+                         {"prompt": "scene", "upstream_model": "seedance-2-0-mini",
+                          "duration": 4, "resolution": "480p", "aspect_ratio": "1:1", "n": 1})
+    assert error.value.thread_id == "thread-test"
+    assert error.value.stage == "submit"
+    c.close()
+
+
 def test_agent_background_interrupt_remains_processing(monkeypatch):
     c = client()
     thread_id = "thread-test"

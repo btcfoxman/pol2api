@@ -34,10 +34,11 @@ class UpstreamError(RuntimeError):
 
 
 class SubmissionUnknown(UpstreamError):
-    def __init__(self):
+    def __init__(self, thread_id=""):
         super().__init__(
-            "提交结果未知；请先核对上游记录，系统不会自动重复提交", "SUBMISSION_UNKNOWN"
+            "提交结果未知；请先核对上游记录，系统不会自动重复提交", "SUBMISSION_UNKNOWN", stage="submit"
         )
+        self.thread_id = thread_id
 
 
 def public_media_url(url):
@@ -67,6 +68,7 @@ class PolloClient:
             account.get("proxy_url", ""), settings.proxy_host_override
         )
         self.session = curl_requests.Session(impersonate="chrome")
+        self.on_agent_thread_created = None
         domain = urlsplit(self.base).hostname
         records = account.get("cookie_records") or []
         if isinstance(records, str):
@@ -200,7 +202,7 @@ class PolloClient:
             raise UpstreamError("密码登录网络请求失败", "NETWORK_ERROR") from exc
         return self.session_context()
 
-    def _request(self, method, path, *, payload=None, params=None):
+    def _request(self, method, path, *, payload=None, params=None, timeout=None):
         headers = {
             "Accept": "application/json",
             "Origin": self.base,
@@ -220,7 +222,7 @@ class PolloClient:
                     params=params,
                     headers=headers,
                     proxy=self.proxy or None,
-                    timeout=self.settings.request_timeout_seconds,
+                    timeout=timeout or self.settings.request_timeout_seconds,
                     allow_redirects=False,
                 )
             except Exception as exc:
@@ -718,8 +720,8 @@ class PolloClient:
             raise SubmissionUnknown()
         return result
 
-    def _agent_data(self, method, path, *, payload=None):
-        response = self._request(method, path, payload=payload)
+    def _agent_data(self, method, path, *, payload=None, timeout=None):
+        response = self._request(method, path, payload=payload, timeout=timeout)
         if not isinstance(response, dict) or response.get("code") != 200:
             message = response.get("msg") if isinstance(response, dict) else None
             raise UpstreamError(str(message or "Agent 响应无效"), "AGENT_ERROR")
@@ -727,6 +729,32 @@ class PolloClient:
         if not isinstance(data, dict):
             raise UpstreamError("Agent 响应缺少数据", "INVALID_RESPONSE")
         return data
+
+    def _agent_run_started(self, thread_id, message_id):
+        """Look for evidence of an accepted run without replaying its POST."""
+        try:
+            data = self._agent_data(
+                "POST", "/api/agent-gateway/agent/v1/threads/status",
+                payload={"thread_ids": [thread_id]}, timeout=10,
+            )
+            thread = next(
+                (item for item in data.get("threads") or []
+                 if isinstance(item, dict) and item.get("thread_id") == thread_id), None,
+            )
+            if thread and thread.get("status") in {"busy", "pending", "running"}:
+                return True
+            conversation = self._agent_data(
+                "POST", f"/api/agent-gateway/agent/v1/threads/{thread_id}/conversation",
+                payload={"limit": 20}, timeout=10,
+            )
+            return any(
+                isinstance(item, dict)
+                and (item.get("id") == message_id
+                     or item.get("type") in {"human", "user"})
+                for item in conversation.get("messages") or []
+            )
+        except UpstreamError:
+            return False
 
     def generate_agent(self, body, payload):
         project = body.get("projectId")
@@ -746,6 +774,8 @@ class PolloClient:
         if not isinstance(thread_id, str) or not thread_id:
             raise UpstreamError("Agent 未返回会话 ID", "INVALID_RESPONSE")
         message_id = str(uuid.uuid4())
+        if self.on_agent_thread_created:
+            self.on_agent_thread_created(thread_id)
         request = {
             "input": {
                 "messages": [
@@ -785,18 +815,25 @@ class PolloClient:
                 json=request,
                 headers=headers,
                 proxy=self.proxy or None,
-                timeout=self.settings.request_timeout_seconds,
+                timeout=max(self.settings.request_timeout_seconds, 120),
                 allow_redirects=False,
                 stream=True,
             )
         except Exception as exc:
             # A timed out POST may already be running. Never replay it.
-            raise SubmissionUnknown() from exc
+            if self._agent_run_started(thread_id, message_id):
+                return {"id": thread_id, "submission_recovered": True}
+            raise SubmissionUnknown(thread_id) from exc
         try:
             if response.status_code in (401, 403):
                 raise UpstreamError("Agent 会话失效或需要浏览器验证", "AUTH_REQUIRED", 401)
             if response.status_code == 429:
                 raise UpstreamError("Agent 请求过于频繁", "RATE_LIMITED", 429)
+            if response.status_code in (408, 425) or response.status_code >= 500:
+                response.close()
+                if self._agent_run_started(thread_id, message_id):
+                    return {"id": thread_id, "submission_recovered": True}
+                raise SubmissionUnknown(thread_id)
             if response.status_code != 200:
                 raise UpstreamError(
                     f"Agent 提交被拒绝（HTTP {response.status_code}）",
@@ -805,7 +842,10 @@ class PolloClient:
                     stage="submit",
                 )
             if "text/event-stream" not in response.headers.get("content-type", ""):
-                raise SubmissionUnknown()
+                response.close()
+                if self._agent_run_started(thread_id, message_id):
+                    return {"id": thread_id, "submission_recovered": True}
+                raise SubmissionUnknown(thread_id)
         finally:
             response.close()
         return {"id": thread_id}

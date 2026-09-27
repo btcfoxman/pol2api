@@ -127,6 +127,7 @@ def test_agent_mode_submits_and_returns_video_via_existing_task_api(setup, monke
     def generate_agent(client, body, payload):
         assert "projectId" in body
         assert payload["_submission_mode"] == "agent"
+        client.on_agent_thread_created(thread_id)
         return {"id": thread_id}
 
     def agent_status(client, record_id, payload):
@@ -156,7 +157,33 @@ def test_agent_mode_submits_and_returns_video_via_existing_task_api(setup, monke
     assert done["actual_cost"] == 10
     assert done["result_urls"] == ["https://example.com/clean.mp4"]
     assert done["channel"] == "pollo_agent"
+    assert done["upstream_response"]["agent_thread_id"] == thread_id
     assert db.get_account(account["id"])["status"] == "generation_restricted"
+
+
+def test_unknown_agent_submit_preserves_thread_for_reconciliation(setup, monkeypatch):
+    from app.pollo_client import SubmissionUnknown
+
+    db, service, _ = setup
+    service.settings.agent_mode_enabled = True
+    thread_id = "11111111-2222-3333-4444-555555555555"
+    monkeypatch.setattr(
+        FakeClient, "prepare",
+        lambda client, payload: ({"projectId": "project", "userInput": {}},
+                                 {"discountCost": 12}, 12),
+    )
+
+    def ambiguous(client, body, payload):
+        client.on_agent_thread_created(thread_id)
+        raise SubmissionUnknown(thread_id)
+
+    monkeypatch.setattr(FakeClient, "generate_agent", ambiguous, raising=False)
+    task = service.create_task(request())
+    done = service.wait_task(task["id"], 5)
+    assert done["error_code"] == "SUBMISSION_UNKNOWN"
+    assert done["generation_id"] == ""
+    assert done["upstream_response"]["agent_thread_id"] == thread_id
+    assert done["error_message"] == "提交结果未确认，请核对上游任务，暂勿重复提交~"
 
 
 @pytest.mark.parametrize("error_code,error_message,expected_message", [

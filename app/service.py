@@ -711,6 +711,12 @@ class PolService:
                         stage="submit",
                     )
                 self.db.update_task(task_id, status="submitting", progress=35)
+                if agent_mode:
+                    def remember_agent_thread(thread_id):
+                        audit["agent_thread_id"] = thread_id
+                        self.db.update_task(task_id, upstream_response=audit)
+
+                    client.on_agent_thread_created = remember_agent_thread
                 generated = (
                     client.generate_agent(body, payload)
                     if agent_mode
@@ -886,6 +892,8 @@ class PolService:
                 "message": str(exc)[:800],
                 "stage": getattr(exc, "stage", ""),
             }
+            if uncertain and exc.__cause__:
+                audit["failure"]["transport_error_type"] = type(exc.__cause__).__name__
             failure = public_failure(
                 {
                     **self.db.get_task(task_id),
