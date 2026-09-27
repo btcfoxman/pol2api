@@ -145,6 +145,51 @@ def test_agent_no_video_preserves_output_moderation_reason():
     assert result["generateRecord"]["creditDecimal"] == 2
 
 
+def test_agent_no_video_preserves_output_audio_moderation_reason():
+    messages = [{
+        "type": "tool", "name": "generate_video", "status": "error",
+        "content": "PolicyViolation: OutputAudioSensitiveContentDetected",
+    }]
+    result = agent_video_detail({"artifact_groups": {}}, messages, PAYLOAD)
+    assert result["status"] == "failed"
+    assert result["errorCode"] == "CONTENT_MODERATION_FAILED"
+    assert result["errorMessage"] == "OutputAudioSensitiveContentDetected"
+
+
+def test_agent_no_video_preserves_real_person_reason():
+    messages = [{
+        "type": "tool", "name": "generate_video", "status": "error",
+        "content": "Reference image contains a real person; policy violation",
+    }]
+    result = agent_video_detail({"artifact_groups": {}}, messages, PAYLOAD)
+    assert result["errorCode"] == "REAL_PERSON_DETECTED"
+
+
+def test_agent_adaptive_metadata_uses_matching_output_dimensions():
+    artifacts = {
+        "artifact_groups": {"video": {"artifacts": [{
+            "media_type": "video", "delivery_role": "final",
+            "asset": {"asset_url": "https://cdn.example/video.mp4"},
+            "media": {
+                "duration_sec": 9.056, "resolution": "480p",
+                "aspect_ratio": "adaptive", "width": 850, "height": 482,
+            },
+            "generation": {"model": "Seedance 2.5"},
+        }]}}
+    }
+    request = {**PAYLOAD, "upstream_model": "seedance-2-5", "duration": 9,
+               "aspect_ratio": "16:9"}
+    detail = agent_video_detail(artifacts, [], request)
+    assert detail["status"] == "succeed"
+    assert detail["generations"][0]["videoMeta"]["aspect_ratio"] == "16:9"
+    assert detail["generations"][0]["videoMeta"]["source_aspect_ratio"] == "adaptive"
+
+    artifacts["artifact_groups"]["video"]["artifacts"][0]["media"]["width"] = 720
+    rejected = agent_video_detail(artifacts, [], request)
+    assert rejected["status"] == "failed"
+    assert rejected["errorCode"] == "AGENT_OUTPUT_MISMATCH"
+
+
 def test_agent_no_video_identifies_unsupported_combination():
     messages = [{
         "type": "tool", "name": "list_generation_models",

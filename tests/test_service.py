@@ -159,7 +159,15 @@ def test_agent_mode_submits_and_returns_video_via_existing_task_api(setup, monke
     assert db.get_account(account["id"])["status"] == "generation_restricted"
 
 
-def test_agent_moderation_failure_returns_classified_message(setup, monkeypatch):
+@pytest.mark.parametrize("error_code,error_message,expected_message", [
+    ("OUTPUT_MODERATION_FAILED", "OutputVideoSensitiveContentDetected",
+     "生成的视频内容违规，请修改描述后重试~"),
+    ("CONTENT_MODERATION_FAILED", "OutputAudioSensitiveContentDetected",
+     "检测到内容有敏感或违规情况，请修改后重试～"),
+])
+def test_agent_moderation_failure_returns_classified_message(
+    setup, monkeypatch, error_code, error_message, expected_message
+):
     db, service, _ = setup
     service.settings.agent_mode_enabled = True
     thread_id = "11111111-2222-3333-4444-555555555555"
@@ -181,8 +189,8 @@ def test_agent_moderation_failure_returns_classified_message(setup, monkeypatch)
         FakeClient, "agent_detail",
         lambda client, record_id, payload: {
             "status": "failed",
-            "errorCode": "OUTPUT_MODERATION_FAILED",
-            "errorMessage": "OutputVideoSensitiveContentDetected",
+            "errorCode": error_code,
+            "errorMessage": error_message,
             "generateRecord": {"creditDecimal": 2},
             "generations": [],
         }, raising=False,
@@ -191,12 +199,12 @@ def test_agent_moderation_failure_returns_classified_message(setup, monkeypatch)
     done = service.wait_task(task["id"], 5)
     public = service.public_task(done)
     assert done["status"] == "failed"
-    assert done["error_code"] == "OUTPUT_MODERATION_FAILED"
+    assert done["error_code"] == error_code
     assert done["actual_cost"] == 2
     assert public["error"] == {
-        "code": "OUTPUT_MODERATION_FAILED",
-        "category": "OUTPUT_MODERATION_FAILED",
-        "message": "生成的视频内容违规，请修改描述后重试~",
+        "code": error_code,
+        "category": error_code,
+        "message": expected_message,
         "outcome": "failed",
         "refunded": False,
     }

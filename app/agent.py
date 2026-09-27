@@ -8,6 +8,8 @@ import re
 from pathlib import PurePosixPath
 from urllib.parse import urlsplit
 
+from app.task_errors import classify_failure
+
 
 MODEL_LABELS = {
     "seedance-2-0-mini": "Seedance 2.0 mini",
@@ -117,12 +119,25 @@ def agent_failure_reason(messages):
             unsupported = True
         if message.get("status") != "error" or name not in {"generate", "generate_video"}:
             continue
+        if re.search(r"OutputAudioSensitiveContentDetected", content, re.IGNORECASE):
+            return "CONTENT_MODERATION_FAILED", "OutputAudioSensitiveContentDetected"
         if re.search(
             r"OutputVideoSensitiveContentDetected|output video.{0,80}(?:sensitive|copyright|policy violation)",
             content,
             re.IGNORECASE,
         ):
             return "OUTPUT_MODERATION_FAILED", "OutputVideoSensitiveContentDetected"
+        category = classify_failure("", content)
+        if category in {
+            "REAL_PERSON_DETECTED",
+            "INPUT_IMAGE_REAL_PERSON",
+            "OUTPUT_MODERATION_FAILED",
+            "TEXT_MODERATION_FAILED",
+            "IMAGE_MODERATION_FAILED",
+            "VIDEO_MODERATION_FAILED",
+            "CONTENT_MODERATION_FAILED",
+        }:
+            return category, category
         if (message.get("additional_kwargs") or {}).get("error_code") == "INVALID_PARAMS":
             invalid_params = True
     if unsupported:
@@ -130,6 +145,19 @@ def agent_failure_reason(messages):
     if invalid_params:
         return "AGENT_TOOL_INVALID_PARAMS", "Agent video tool rejected parameters"
     return "AGENT_NO_VIDEO", "Agent did not produce a video"
+
+
+def _matches_requested_ratio(media, requested):
+    try:
+        expected_width, expected_height = (float(part) for part in requested.split(":"))
+        width, height = float(media.get("width")), float(media.get("height"))
+    except (TypeError, ValueError, AttributeError):
+        return False
+    if not all(math.isfinite(value) and value > 0 for value in (
+        expected_width, expected_height, width, height
+    )):
+        return False
+    return abs((width / height) / (expected_width / expected_height) - 1) <= 0.02
 
 
 def agent_video_detail(artifacts, messages, payload):
@@ -164,9 +192,16 @@ def agent_video_detail(artifacts, messages, payload):
             payload["resolution"]
         ).lower():
             mismatches.append(f"分辨率 {media.get('resolution') or '未知'}")
-        if payload["aspect_ratio"] not in {"auto", "adaptive"} and str(
-            media.get("aspect_ratio") or ""
-        ) != str(payload["aspect_ratio"]):
+        source_ratio = str(media.get("aspect_ratio") or "")
+        requested_ratio = str(payload["aspect_ratio"])
+        inferred_ratio = (
+            requested_ratio not in {"auto", "adaptive"}
+            and source_ratio.lower() in {"", "auto", "adaptive"}
+            and _matches_requested_ratio(media, requested_ratio)
+        )
+        if requested_ratio not in {"auto", "adaptive"} and not (
+            source_ratio == requested_ratio or inferred_ratio
+        ):
             mismatches.append(f"比例 {media.get('aspect_ratio') or '未知'}")
         try:
             duration = float(media.get("duration_sec"))
@@ -187,7 +222,8 @@ def agent_video_detail(artifacts, messages, payload):
                     "width": media.get("width"),
                     "height": media.get("height"),
                     "duration": media.get("duration_sec"),
-                    "aspect_ratio": media.get("aspect_ratio"),
+                    "aspect_ratio": requested_ratio if inferred_ratio else media.get("aspect_ratio"),
+                    **({"source_aspect_ratio": source_ratio} if inferred_ratio else {}),
                     "resolution": media.get("resolution"),
                     "model": actual_model,
                 },

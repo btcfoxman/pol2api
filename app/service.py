@@ -792,6 +792,12 @@ class PolService:
                                 "AGENT_TOOL_INVALID_PARAMS",
                                 "AGENT_NO_VIDEO",
                                 "OUTPUT_MODERATION_FAILED",
+                                "CONTENT_MODERATION_FAILED",
+                                "VIDEO_MODERATION_FAILED",
+                                "IMAGE_MODERATION_FAILED",
+                                "TEXT_MODERATION_FAILED",
+                                "REAL_PERSON_DETECTED",
+                                "INPUT_IMAGE_REAL_PERSON",
                             }
                             else "GENERATION_FAILED"
                         )
