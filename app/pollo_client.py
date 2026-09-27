@@ -819,6 +819,22 @@ class PolloClient:
                                 response_type=response_type,
                                 transport_error_type=transport_error_type)
 
+    @staticmethod
+    def _agent_json_response(response):
+        """Read a small Agent JSON envelope from a streamed HTTP response."""
+        chunks = []
+        total = 0
+        try:
+            for chunk in response.iter_content(chunk_size=4096):
+                total += len(chunk)
+                if total > 16384:
+                    return {}
+                chunks.append(chunk)
+            value = json.loads(b"".join(chunks))
+            return value if isinstance(value, dict) else {}
+        except Exception:
+            return {}
+
     def generate_agent(self, body, payload):
         project = body.get("projectId")
         if not project:
@@ -908,6 +924,16 @@ class PolloClient:
             if "text/event-stream" not in response.headers.get("content-type", ""):
                 status = response.status_code
                 response_type = response.headers.get("content-type", "").split(";", 1)[0][:80]
+                if response_type.lower() == "application/json":
+                    envelope = self._agent_json_response(response)
+                    message = str(envelope.get("msg") or "")
+                    if envelope.get("code") == 100020 or (
+                        "chat limit has been reached" in message.lower()
+                    ):
+                        raise UpstreamError("Agent 今日对话额度已用尽，明日重置",
+                                            "AGENT_CHAT_LIMIT", 429, stage="submit")
+                    if isinstance(envelope.get("code"), (int, str)):
+                        response_type += f"; code={str(envelope['code'])[:20]}"
                 response.close()
                 return self._reconcile_agent_submission(thread_id, message_id,
                                                         http_status=status,

@@ -27,6 +27,7 @@ from app.task_errors import failure_diagnostic, public_failure, refund_receipt
 
 LOGGER = logging.getLogger("pol2api")
 TERMINAL = {"succeeded", "failed", "expired"}
+AGENT_CHAT_LIMIT_COOLDOWN_SECONDS = 24 * 60 * 60
 
 
 def _account_batch_rows(source):
@@ -404,8 +405,11 @@ class PolService:
                     client.close()
 
     def update_account(self, account_id, changes):
-        if not self.db.get_account(account_id):
+        current = self.db.get_account(account_id)
+        if not current:
             raise KeyError("account not found")
+        if changes.get("enabled") is True and current["status"] == "agent_chat_limited":
+            changes.update(status="active", last_error="")
         if "project_id" in changes:
             changes["team_id"] = changes.pop("project_id")
         if "proxy_url" in changes:
@@ -481,9 +485,9 @@ class PolService:
             last_error="",
         )
         # A valid session/balance does not prove generation restrictions were lifted.
-        if current.get("status") == "generation_restricted":
+        if current.get("status") in {"generation_restricted", "agent_chat_limited"}:
             changes.update(
-                status="generation_restricted", last_error=current.get("last_error", "")
+                status=current["status"], last_error=current.get("last_error", "")
             )
         if balance:
             changes.update(
@@ -527,8 +531,20 @@ class PolService:
         except Exception:
             LOGGER.info("Account %s check did not complete", account_id)
 
+    def _release_agent_chat_limit_accounts(self):
+        now = now_ts()
+        for account in self.db.list_accounts():
+            if (account["status"] == "agent_chat_limited" and not account["active_tasks"]
+                    and now - int(account.get("last_checked_at") or now)
+                    >= AGENT_CHAT_LIMIT_COOLDOWN_SECONDS):
+                self.db.update_account(
+                    account["id"],
+                    {"enabled": True, "status": "pending", "last_error": ""},
+                )
+
     def _maintain(self):
         while not self._stop.wait(self.settings.account_maintenance_interval_seconds):
+            self._release_agent_chat_limit_accounts()
             accounts = [
                 a
                 for a in self.db.list_accounts()
@@ -909,7 +925,13 @@ class PolService:
                 completed_at=now_ts(),
                 upstream_response=audit,
             )
-            if _generation_restricted(exc) and account:
+            if isinstance(exc, UpstreamError) and exc.code == "AGENT_CHAT_LIMIT" and account:
+                self.db.update_account(
+                    account["id"],
+                    {"enabled": False, "status": "agent_chat_limited",
+                     "last_error": str(exc), "last_checked_at": now_ts()},
+                )
+            elif _generation_restricted(exc) and account:
                 self.db.update_account(
                     account["id"],
                     {

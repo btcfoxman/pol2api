@@ -253,6 +253,37 @@ def test_agent_stream_failure_recovers_delayed_run_without_resubmitting(monkeypa
     c.close()
 
 
+def test_agent_json_chat_limit_is_explicit_rejection(monkeypatch):
+    c = client()
+    calls = []
+
+    def agent_data(method, path, *, payload=None, timeout=None):
+        calls.append(path)
+        if path.endswith("/threads"):
+            return {"thread_id": "thread-test"}
+        raise AssertionError("chat-limit response must not trigger thread polling")
+
+    def json_post(url, **kwargs):
+        calls.append("stream_post")
+        return SimpleNamespace(
+            status_code=200, headers={"content-type": "application/json"},
+            iter_content=lambda chunk_size: iter([json.dumps({
+                "code": 100020, "msg": "Today's chat limit has been reached. Chats reset automatically tomorrow.",
+                "data": None}).encode()]), close=lambda: None)
+
+    monkeypatch.setattr(c, "_agent_data", agent_data)
+    monkeypatch.setattr(c.session, "post", json_post)
+    with pytest.raises(UpstreamError) as error:
+        c.generate_agent({"projectId": "project-test", "userInput": {}},
+                         {"prompt": "scene", "upstream_model": "seedance-2-0-mini",
+                          "duration": 4, "resolution": "480p", "aspect_ratio": "1:1", "n": 1})
+    assert error.value.code == "AGENT_CHAT_LIMIT"
+    assert public_failure({"error_code": error.value.code,
+                           "error_message": str(error.value)})["outcome"] == "rejected"
+    assert calls == ["/api/agent-gateway/agent/v1/threads", "stream_post"]
+    c.close()
+
+
 def test_agent_background_interrupt_remains_processing(monkeypatch):
     c = client()
     thread_id = "thread-test"
